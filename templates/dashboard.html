@@ -138,9 +138,9 @@
             </div>
 
             <div class="item-card-details">
-              <span><b>Location Found:</b> {{ entry.location }}</span>
-              <span><b>Time Found:</b> {{ " ".join(entry.losttime.split("T")) if entry.losttime else "N/A" }}</span>
-              <span><b>Contact Reporter:</b> <span style="color: var(--accent-cyan);">{{ entry.reporterid }}</span></span>
+              <span><b>📍 Location Found:</b> {{ entry.location }}</span>
+              <span><b>⏰ Time Found:</b> {{ " ".join(entry.losttime.split("T")) if entry.losttime else "N/A" }}</span>
+              <span><b>👤 Contact Reporter:</b> <span style="color: var(--accent-cyan);">{{ entry.reporterid }}</span></span>
             </div>
 
             <p class="item-card-description">{{ entry.description }}</p>

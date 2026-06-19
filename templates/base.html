@@ -3,46 +3,86 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="A premium Flask and Firebase secure authentication system demo for the Hackathon application.">
   <title>{% block title %}LostLinks{% endblock %}</title>
-  <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            primary: '#6366f1',
+          }
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #d5dde6; }
+  </style>
 </head>
-<body>
-
-  <!-- Page Loader Overlay -->
-  <div class="page-loader">
-    <div class="loader-content">
-      <div class="loader-spinner"></div>
-      <div class="loader-text">🔗 LostLinks</div>
-    </div>
-  </div>
+<body class="min-h-screen flex flex-col text-slate-800">
 
   <!-- Navigation Header -->
-  <header>
-    <a href="{{ url_for('index') }}" class="logo" id="nav-logo-link">🔗 LostLinks</a>
-    <nav class="nav-links">
-      {% if session.get('user_email') %}
-        <a href="{{ url_for('profile') }}" id="nav-profile-link">Profile</a>
-        <a href="{{ url_for('dashboard') }}" id="nav-dashboard-link">Dashboard</a>
-        <a href="{{ url_for('report_lost') }}" id="nav-report-lost-link">Report Lost</a>
-        <a href="{{ url_for('report_found') }}" id="nav-report-found-link">Report Found</a>
-        <a href="{{ url_for('logout') }}" class="btn-nav-outline" id="nav-logout-btn">Log Out</a>
-      {% else %}
-        <a href="{{ url_for('login') }}" id="nav-login-link">Log In</a>
-        <a href="{{ url_for('signup') }}" class="btn-nav-outline" id="nav-signup-btn">Sign Up</a>
-      {% endif %}
-    </nav>
+  <header class="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <a href="{{ url_for('index') }}" class="text-xl font-bold text-primary tracking-tight" id="nav-logo-link">🔗 LostLinks</a>
+      
+      <!-- Desktop Navigation -->
+      <nav class="hidden md:flex gap-4 items-center">
+        {% if session.get('user_email') %}
+          <a href="{{ url_for('dashboard') }}" class="text-slate-600 hover:text-primary font-medium transition" id="nav-dashboard-link">Dashboard</a>
+          <a href="{{ url_for('report_lost') }}" class="text-slate-600 hover:text-primary font-medium transition" id="nav-report-lost-link">Report Lost</a>
+          <a href="{{ url_for('report_found') }}" class="text-slate-600 hover:text-primary font-medium transition" id="nav-report-found-link">Report Found</a>
+          <a href="{{ url_for('profile') }}" class="text-slate-600 hover:text-primary font-medium transition" id="nav-profile-link">Profile</a>
+          <a href="{{ url_for('logout') }}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl font-medium transition" id="nav-logout-btn">Log Out</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="text-slate-600 hover:text-primary font-medium transition" id="nav-login-link">Log In</a>
+          <a href="{{ url_for('signup') }}" class="bg-primary hover:bg-indigo-600 text-white px-5 py-2 rounded-xl font-medium shadow-md shadow-indigo-200 transition" id="nav-signup-btn">Sign Up</a>
+        {% endif %}
+      </nav>
+
+      <!-- Mobile Navigation Button -->
+      <button id="mobile-menu-btn" class="md:hidden text-slate-600 hover:text-primary focus:outline-none p-2 rounded-xl hover:bg-slate-100 transition" aria-label="Open Menu">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="menu-icon">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="close-icon">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile Navigation Dropdown -->
+    <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-slate-100 px-4 py-4 shadow-lg absolute w-full left-0 z-40 transition-all origin-top transform scale-y-0 opacity-0" style="transition: transform 0.2s ease-out, opacity 0.2s ease-out;">
+      <div class="flex flex-col gap-2">
+        {% if session.get('user_email') %}
+          <a href="{{ url_for('dashboard') }}" class="block px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-primary rounded-xl font-medium transition">Dashboard</a>
+          <a href="{{ url_for('report_lost') }}" class="block px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-primary rounded-xl font-medium transition">Report Lost</a>
+          <a href="{{ url_for('report_found') }}" class="block px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-primary rounded-xl font-medium transition">Report Found</a>
+          <a href="{{ url_for('profile') }}" class="block px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-primary rounded-xl font-medium transition">Profile</a>
+          <a href="{{ url_for('logout') }}" class="block text-center mt-4 bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-3 rounded-xl font-bold transition">Log Out</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="block px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-primary rounded-xl font-medium transition text-center">Log In</a>
+          <a href="{{ url_for('signup') }}" class="block bg-primary hover:bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold shadow-md transition text-center mt-2">Sign Up</a>
+        {% endif %}
+      </div>
+    </div>
   </header>
 
   <!-- Flash Notification Messages -->
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      <div class="flash-messages" id="flash-container">
+      <div class="fixed top-20 right-4 z-50 flex flex-col gap-2" id="flash-container">
         {% for category, message in messages %}
-          <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}" role="alert">
-            <span>{{ message }}</span>
-            <button class="alert-close" onclick="this.parentElement.remove();" aria-label="Close Alert">&times;</button>
+          {% set bg_color = 'bg-emerald-50 border-emerald-200 text-emerald-800' if category == 'success' else ('bg-blue-50 border-blue-200 text-blue-800' if category == 'info' else 'bg-rose-50 border-rose-200 text-rose-800') %}
+          <div class="alert {{ bg_color }} border rounded-2xl p-4 shadow-lg flex items-start gap-3 w-80 backdrop-blur-md" role="alert">
+            <span class="flex-1 font-medium text-sm">{{ message }}</span>
+            <button class="alert-close text-current opacity-70 hover:opacity-100" onclick="this.parentElement.remove();" aria-label="Close Alert">&times;</button>
           </div>
         {% endfor %}
       </div>
@@ -50,18 +90,20 @@
   {% endwith %}
 
   <!-- Main Body Content -->
-  <main>
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
     {% block content %}{% endblock %}
   </main>
 
   <!-- Footer -->
-  <footer>
-    <p>&copy; LostLinks, 2026. Made with 💜 for IIT Bhilai.</p>
+  <footer class="bg-white border-t border-slate-200 py-6 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-slate-500 font-medium">
+      &copy; LostLinks, 2026. Made with 💜 for IIT Bhilai.
+    </div>
   </footer>
 
   <script>
-    // Automatically fade out flash messages after 5 seconds
     document.addEventListener('DOMContentLoaded', function() {
+      // Flash messages dismiss logic
       const container = document.getElementById('flash-container');
       if (container) {
         setTimeout(() => {
@@ -73,6 +115,39 @@
             setTimeout(() => alert.remove(), 500);
           });
         }, 5000);
+      }
+
+      // Mobile Menu Toggle Logic
+      const mobileBtn = document.getElementById('mobile-menu-btn');
+      const mobileMenu = document.getElementById('mobile-menu');
+      const menuIcon = document.getElementById('menu-icon');
+      const closeIcon = document.getElementById('close-icon');
+
+      if (mobileBtn && mobileMenu) {
+        mobileBtn.addEventListener('click', () => {
+          const isHidden = mobileMenu.classList.contains('scale-y-0');
+          if (isHidden) {
+            // Show menu
+            mobileMenu.classList.remove('hidden');
+            // small delay to allow display:block to apply before animating transform
+            setTimeout(() => {
+              mobileMenu.classList.remove('scale-y-0', 'opacity-0');
+              mobileMenu.classList.add('scale-y-100', 'opacity-100');
+            }, 10);
+            menuIcon.classList.add('hidden');
+            closeIcon.classList.remove('hidden');
+          } else {
+            // Hide menu
+            mobileMenu.classList.remove('scale-y-100', 'opacity-100');
+            mobileMenu.classList.add('scale-y-0', 'opacity-0');
+            menuIcon.classList.remove('hidden');
+            closeIcon.classList.add('hidden');
+            // Wait for transition to finish before hiding display
+            setTimeout(() => {
+              mobileMenu.classList.add('hidden');
+            }, 200); // 200ms matches the transition duration
+          }
+        });
       }
     });
   </script>

@@ -1,10 +1,12 @@
 <!-- Photo Option (Upload or Camera Capture) -->
 <div class="mb-4">
-  <label class="block text-sm font-semibold text-slate-700 mb-2">Add a Photo (Optional)</label>
+  <label class="block text-sm font-semibold text-slate-700 mb-2">
+    Add a Photo{% if photo_required %}<span style="color:red">*</span>{% endif %}
+  </label>
   
   <!-- Tab Buttons -->
   <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-xl w-max">
-    <button type="button" class="px-4 py-2 text-sm font-bold rounded-lg transition photo-tab-btn bg-white shadow text-primary" id="tab-upload-btn" onclick="switchTab('upload')">🗂 Upload File</button>
+    <button type="button" class="px-4 py-2 text-sm font-bold rounded-lg transition photo-tab-btn bg-white shadow text-primary" id="tab-upload-btn" onclick="switchTab('upload')">Upload File</button>
     <button type="button" class="px-4 py-2 text-sm font-bold rounded-lg transition text-slate-500 hover:text-slate-800 photo-tab-btn" id="tab-capture-btn" onclick="switchTab('capture')">📷 Use Camera</button>
   </div>
 

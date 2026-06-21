@@ -262,7 +262,7 @@
             <h3 class="capability-card-title">Real-time Search</h3>
             <p class="capability-card-desc">Scan database for active lost/found items</p>
           </div>
-          <div class="capability-card">
+          <div class="capability-card cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200" onclick="toggleAssistantMap()" onkeydown="if(event.key === 'Enter' || event.key === ' ') { toggleAssistantMap(); }" role="button" tabindex="0" title="Toggle Campus Map">
             <span class="capability-card-icon">📍</span>
             <h3 class="capability-card-title">Map Locations</h3>
             <p class="capability-card-desc">Trace coordinates and campus locations</p>
@@ -278,10 +278,62 @@
             <p class="capability-card-desc">Receive links and guidance on report listings</p>
           </div>
         </div>
+
+        <!-- Collapsible Campus Map View -->
+        <div id="assistant-map-container" class="hidden mt-8 w-full max-w-4xl mx-auto transition-all duration-500 ease-in-out transform opacity-0 translate-y-4">
+          <div class="bg-slate-900/80 border border-slate-800 rounded-[24px] p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden text-left">
+            
+            <!-- Subtle internal glow for map dashboard -->
+            <div style="position: absolute; top: -10%; left: -10%; width: 250px; height: 250px; background: radial-gradient(circle, rgba(99, 102, 241, 0.06) 0%, rgba(99, 102, 241, 0) 70%); filter: blur(30px); pointer-events: none; z-index: 0;"></div>
+            
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-5 relative z-10">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl" style="text-shadow: 0 0 10px rgba(99,102,241,0.5);">🗺️</span>
+                <div>
+                  <h3 class="font-bold text-white text-base leading-tight">Campus Interactive Map</h3>
+                  <p class="text-xs text-slate-400 font-medium mt-0.5">Explore active report coordinates and campus landmarks</p>
+                </div>
+              </div>
+              <button onclick="toggleAssistantMap()" class="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 border border-slate-800 hover:border-rose-500/20 focus:outline-none" title="Close Map">
+                &times;
+              </button>
+            </div>
+            
+            <!-- Map Container -->
+            <div class="relative w-full rounded-2xl overflow-hidden border border-slate-800 bg-slate-950/50 relative z-10" style="height: 420px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8);">
+              <div id="assistant-inline-map" class="w-full h-full" style="height: 100%; width: 100%;"></div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
 {% endif %}
+
+<style>
+  /* Premium Dark Mode Styling for Leaflet Popups in Assistant */
+  .leaflet-popup-content-wrapper {
+    background: rgba(15, 23, 42, 0.96) !important;
+    color: #f1f5f9 !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+    backdrop-filter: blur(12px) !important;
+  }
+  .leaflet-popup-tip {
+    background: rgba(15, 23, 42, 0.96) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  }
+  .leaflet-popup-close-button {
+    color: #94a3b8 !important;
+    padding: 8px 8px 0 0 !important;
+  }
+  .leaflet-popup-close-button:hover {
+    color: #f87171 !important;
+  }
+</style>
 
 <script>
   // Auto-scroll chat log stream to bottom on load (only if history exists)
@@ -331,6 +383,193 @@
       }
       if (input) input.readOnly = true;
     }
+  }
+
+  // Interactive Inline Campus Map logic
+  let assistantInlineMap = null;
+  let assistantMapMarkers = [];
+  const activeItems = {{ active_items | tojson | safe if active_items is defined else '[]' }};
+
+  const localLandmarks = [
+    { name: "Hostel Kanhar", coords: [21.2448, 81.3219], radius: 25 },
+    { name: "Hostel Shivnath", coords: [21.2406, 81.32015], radius: 25 },
+    { name: "Hostel Indravati", coords: [21.24311, 81.32076], radius: 25 },
+    { name: "Hostel Gopad", coords: [21.244, 81.32065], radius: 25 },
+    { name: "Tech Cafe", coords: [21.24368, 81.32092], radius: 12 },
+    { name: "NJC", coords: [21.24330, 81.32030], radius: 12 },
+    { name: "Mess", coords: [21.24354, 81.3219], radius: 20 },
+    { name: "Mess Parking", coords: [21.24315, 81.32165], radius: 10 },
+    { name: "Kanhar Parking", coords: [21.24474, 81.32102], radius: 15 },
+    { name: "LHC 500", coords: [21.24610, 81.31899], radius: 25 },
+    { name: "LHC 300", coords: [21.24583, 81.31848], radius: 20 },
+    { name: "ED 1", coords: [21.24591, 81.31787], radius: 25 },
+    { name: "ED 2", coords: [21.24625, 81.31769], radius: 25 },
+    { name: "SD 1", coords: [21.24731, 81.31996], radius: 25 },
+    { name: "SD 2", coords: [21.24766, 81.31980], radius: 25 },
+    { name: "CIF", coords: [21.24731, 81.31868], radius: 25 },
+    { name: "Health Centre", coords: [21.24207, 81.31323], radius: 20 },
+    { name: "LHC 101-208", coords: [21.24548, 81.31921], radius: 25 },
+    { name: "LDC", coords: [21.24643, 81.31966], radius: 25 },
+    { name: "Shopping Complex", coords: [21.24178, 81.31345], radius: 25 },
+    { name: "CPF", coords: [21.24780, 81.31793], radius: 15 },
+    { name: "Basketball/Volleyball Court Area", coords: [21.24613, 81.32187], radius: 30 },
+    { name: "Cricket/Football Ground", coords: [21.24711, 81.32187], radius: 55 },
+    { name: "Gate 1", coords: [21.24605, 81.31322], radius: 15 },
+    { name: "Gate 2", coords: [21.23965, 81.3201], radius: 15 }
+  ];
+
+  function toggleAssistantMap() {
+    const container = document.getElementById('assistant-map-container');
+    if (!container) return;
+
+    const isHidden = container.classList.contains('hidden');
+    if (isHidden) {
+      container.classList.remove('hidden');
+      
+      setTimeout(() => {
+        container.classList.remove('opacity-0', 'translate-y-4');
+        container.classList.add('opacity-100', 'translate-y-0');
+      }, 50);
+
+      if (!assistantInlineMap) {
+        initializeAssistantMap();
+      } else {
+        setTimeout(() => {
+          assistantInlineMap.invalidateSize();
+        }, 100);
+      }
+      
+      setTimeout(() => {
+        container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 300);
+      
+    } else {
+      container.classList.remove('opacity-100', 'translate-y-0');
+      container.classList.add('opacity-0', 'translate-y-4');
+      setTimeout(() => {
+        container.classList.add('hidden');
+      }, 500);
+    }
+  }
+
+  function initializeAssistantMap() {
+    const campusCenter = [21.2425, 81.3175];
+    const southWest = L.latLng(21.238, 81.311);
+    const northEast = L.latLng(21.247, 81.324);
+    const campusBounds = L.latLngBounds(southWest, northEast);
+
+    assistantInlineMap = L.map('assistant-inline-map', {
+      center: campusCenter,
+      zoom: 17,
+      minZoom: 16,
+      maxZoom: 20,
+      maxBounds: campusBounds,
+      maxBoundsViscosity: 1.0,
+      zoomControl: true,
+      scrollWheelZoom: true
+    });
+
+    assistantInlineMap.attributionControl.setPrefix('📌 IIT Bhilai');
+
+    const streetLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      attribution: '&copy; Google Maps',
+      maxZoom: 20
+    });
+
+    const satelliteHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      attribution: '&copy; Google Maps',
+      maxZoom: 20
+    });
+
+    satelliteHybrid.addTo(assistantInlineMap);
+
+    L.control.layers({
+      "Google Satellite (Hybrid)": satelliteHybrid,
+      "Google Street View": streetLayer
+    }, null, { position: 'topright' }).addTo(assistantInlineMap);
+
+    // Draw campus boundary circle
+    L.circle(campusCenter, {
+      color: '#6366f1',
+      fillColor: '#6366f1',
+      fillOpacity: 0.04,
+      radius: 800,
+      weight: 2.5,
+      dashArray: '6, 6',
+      interactive: false
+    }).addTo(assistantInlineMap);
+
+    const createSvgIcon = (color, size = 12, borderSize = 2.5) => {
+      return L.divIcon({
+        className: 'custom-map-marker',
+        html: `<div style="background-color: ${color}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${borderSize}px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); transform: translate(-2px, -2px);"></div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2]
+      });
+    };
+
+    // Plot Landmarks
+    const landmarkIcon = createSvgIcon('#6366f1', 10, 2);
+    localLandmarks.forEach(landmark => {
+      const lMarker = L.marker(landmark.coords, { icon: landmarkIcon }).addTo(assistantInlineMap);
+      lMarker.bindTooltip(landmark.name, { permanent: false, direction: 'top' });
+    });
+
+    // Plot Active Items
+    activeItems.forEach(item => {
+      let itemCoords = null;
+      const locationStr = item.location || "";
+      
+      const coordsRegex = /(-?\d+\.\d+),\s*(-?\d+\.\d+)/;
+      const coordsMatch = locationStr.match(coordsRegex);
+      if (coordsMatch) {
+        itemCoords = [parseFloat(coordsMatch[1]), parseFloat(coordsMatch[2])];
+      } else {
+        const matchedLandmark = localLandmarks.find(l =>
+          locationStr.toLowerCase().includes(l.name.toLowerCase())
+        );
+        if (matchedLandmark) {
+          itemCoords = matchedLandmark.coords;
+        }
+      }
+
+      if (itemCoords) {
+        const isLost = item.type === 'lost';
+        const markerColor = isLost ? '#f43f5e' : '#10b981';
+        const itemIcon = createSvgIcon(markerColor, 16, 3);
+        
+        const marker = L.marker(itemCoords, { icon: itemIcon }).addTo(assistantInlineMap);
+        
+        const typeLabel = isLost ? 'LOST' : 'FOUND';
+        const badgeStyle = isLost 
+          ? 'background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.3);' 
+          : 'background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);';
+        const chatUrl = `/chat/${item.id}`;
+        
+        const popupContent = `
+          <div style="font-family: 'Inter', sans-serif; color: #f1f5f9; padding: 4px; max-width: 240px;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px; gap: 8px;">
+              <strong style="font-size: 14px; font-weight: 700; line-height: 1.2; color: #ffffff;">${item.title}</strong>
+              <span style="font-size: 9px; font-weight: 800; padding: 2px 8px; border-radius: 9999px; text-transform: uppercase; white-space: nowrap; ${badgeStyle}">${typeLabel}</span>
+            </div>
+            <div style="font-size: 11px; color: #94a3b8; margin-bottom: 8px; line-height: 1.35; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px;">
+              <p style="margin: 2px 0;">📍 <b>Location:</b> ${item.location}</p>
+              <p style="margin: 2px 0;">⏰ <b>Time:</b> ${item.losttime ? item.losttime.replace('T', ' ') : 'N/A'}</p>
+            </div>
+            <p style="font-size: 12px; color: #cbd5e1; margin: 0 0 10px 0; line-height: 1.4; line-clamp: 2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${item.description}</p>
+            <a href="${chatUrl}" style="display: block; text-align: center; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; padding: 7px; border-radius: 8px; font-size: 11px; font-weight: 750; text-decoration: none; transition: all 0.2s; box-shadow: 0 4px 10px rgba(99, 102, 241, 0.2);" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 14px rgba(99, 102, 241, 0.35)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 10px rgba(99, 102, 241, 0.2)';">
+              💬 Contact / Chat
+            </a>
+          </div>
+        `;
+        marker.bindPopup(popupContent);
+        assistantMapMarkers.push(marker);
+      }
+    });
+
+    setTimeout(() => {
+      assistantInlineMap.invalidateSize();
+    }, 200);
   }
 </script>
 {% endblock %}

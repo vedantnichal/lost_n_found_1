@@ -19,7 +19,7 @@
 
   <!-- Map Picker Modal -->
   <div id="map-picker-modal" class="fixed inset-0 hidden items-center justify-center p-4 backdrop-blur-md transition-all duration-300 opacity-0" style="z-index: 100; background-color: rgba(15, 23, 42, 0.6);" role="dialog" aria-modal="true">
-    <div id="map-picker-modal-card" class="bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full max-w-4xl overflow-hidden transform scale-95 transition-all duration-300">
+    <div id="map-picker-modal-card" class="bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full max-w-5xl overflow-hidden transform scale-95 transition-all duration-300">
       
       <!-- Modal Header -->
       <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
@@ -27,7 +27,7 @@
           <span class="text-xl">🗺️</span>
           <div>
             <h3 class="font-bold text-slate-800 text-base">Select Location</h3>
-            <p class="text-xs text-slate-400 font-medium">Click on the map or choose a landmark</p>
+            <p class="text-xs text-slate-400 font-medium">Click on the map or choose a landmark, then specify details</p>
           </div>
         </div>
         <button type="button" onclick="closePickerModal()" class="text-slate-400 hover:text-slate-600 hover:bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center transition focus:outline-none">
@@ -37,25 +37,51 @@
         </button>
       </div>
 
-      <!-- Modal Body (Map Container & Landmarks selector) -->
-      <div class="relative w-full">
-        <!-- Selected location text bar inside modal -->
-        <div class="bg-slate-50 px-6 py-2.5 border-b border-slate-100 flex justify-between items-center">
-          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-            <span id="picker-map-status-dot" class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
-            Selected:
-          </span>
-          <span id="picker-selected-value" class="text-xs font-bold text-indigo-600 select-all truncate max-w-[70%]">None</span>
+      <!-- Modal Body (Map & Details Grid) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 w-full">
+        <!-- Left: Leaflet Map (Col span 7) -->
+        <div class="lg:col-span-7 relative border-r border-slate-100">
+          <div id="map" class="w-full" style="height: 480px; min-height: 480px; position: relative;"></div>
         </div>
 
-        <!-- Leaflet Map -->
-        <div id="map" class="w-full" style="height: 550px; min-height: 550px; position: relative;"></div>
+        <!-- Right: Location Details Sidebar (Col span 5) -->
+        <div class="lg:col-span-5 flex flex-col bg-slate-50/30 h-[480px] overflow-y-auto p-5 space-y-4">
+          <!-- Selected Location Status -->
+          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span id="picker-map-status-dot" class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                Selected Location:
+              </span>
+            </div>
+            <div id="picker-selected-value" class="text-sm font-extrabold text-indigo-600 break-words select-all">None</div>
+          </div>
 
-        <!-- Landmarks Panel -->
-        <div class="p-3 bg-slate-50/50 border-t border-slate-100 max-h-36 overflow-y-auto">
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Quick Landmarks Selector:</p>
-          <div class="flex flex-wrap gap-1.5" id="landmark-tags">
-            <!-- Javascript will generate tags here -->
+          <!-- Floor Selector Section -->
+          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm" id="floor-section">
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select Floor / Area</label>
+            <div class="flex flex-wrap gap-1.5" id="floor-pills">
+              <!-- JS will generate pills -->
+            </div>
+          </div>
+
+          <!-- Room / Office Selector Section -->
+          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm" id="room-section">
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2" id="room-label">Specific Room / Office</label>
+            <!-- Custom Room Input -->
+            <div class="relative">
+              <input type="text" id="custom-room-input" 
+                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
+                placeholder="e.g. Room 304, Cafe, Library...">
+            </div>
+          </div>
+
+          <!-- Quick Landmarks Selector (Scrollable) -->
+          <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm flex-1 min-h-[160px]">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Quick Landmarks Selector</p>
+            <div class="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1" id="landmark-tags">
+              <!-- JS will generate tags -->
+            </div>
           </div>
         </div>
       </div>
@@ -79,11 +105,169 @@
     const pickerModal = document.getElementById('map-picker-modal');
     const pickerCard = document.getElementById('map-picker-modal-card');
     const pickerSelectedValue = document.getElementById('picker-selected-value');
+    const floorPillsContainer = document.getElementById('floor-pills');
+    const roomChipsContainer = document.getElementById('room-chips');
+    const customRoomInput = document.getElementById('custom-room-input');
     
     const campusCenter = [21.2425, 81.3175];
     let map = null;
     let selectedMarker = null;
     let tempSelectedLocation = locationInput.value || "";
+
+    // Detailed states
+    let selectedBaseLocation = "";
+    let selectedFloor = "N/A";
+    let selectedRoom = "";
+    let prevBaseLocation = "";
+
+    const landmarkSubLocations = {
+      "LDC": [
+        "Library",
+        "Cafe",
+        "Access Corridor",
+        "DOSA Office",
+        "DOAA Office",
+        "Level 1",
+        "Level 2",
+        "Level 3",
+        "Level 4"
+      ],
+      "LHC 500": [
+        "Right Entrance",
+        "Left Entrance",
+        "Back Entrance",
+        "Restroom",
+        "Access Corridor"
+      ],
+      "LHC 300": [
+        "Right Entrance",
+        "Left Entrance",
+        "Front Entrance",
+        "Restroom",
+        "Access Corridor"
+      ],
+      "LHC 101-208": [
+        "LHC 101",
+        "LHC 102",
+        "LHC 201",
+        "LHC 202",
+        "LHC 203",
+        "LHC 204",
+        "LHC 205",
+        "LHC 206",
+        "LHC 207",
+        "LHC 208",
+        "Corridor Level 1",
+        "Corridor Level 2",
+        "Restroom Level 1",
+        "Restroom Level 2",
+        "Staircase",
+        "Open Area",
+        "Access Corridor"
+      ],
+      "Hostel Kanhar": [
+        "Level 1",
+        "Level 2",
+        "Level 3",
+        "Level 4",
+        "Near Entrance",
+        "TT Room",
+        "Badminton Court Area",
+        "Waiting Room",
+        "SciTech Room",
+        "Swara Room"
+      ],
+      "Hostel Shivnath": [
+        "Level 1",
+        "Level 2",
+        "Level 3",
+        "Level 4",
+        "Near Entrance"
+      ],
+      "Hostel Indravati": [
+        "Level 1",
+        "Level 2",
+        "Level 3",
+        "Level 4",
+        "TT Room",
+        "REC Room",
+        "Badminton Court Area",
+        "Near Entrance"
+      ],
+      "Hostel Gopad": [
+        "Level 1",
+        "Level 2",
+        "Level 3",
+        "Level 4",
+        "TT Room",
+        "Badminton Court Area",
+        "Near Entrance"
+      ],
+      "SD-1": [
+        "Level 1",
+        "Level 2",
+        "Level 3",
+        "Level 4",
+        "Level 5",
+        "Level 6",
+        "Near Entrance Level 1",
+        "Access Corridor Level 2"
+      ],
+      "SD-2": [
+        "Level 1",
+        "Level 2",
+        "Level 3",
+        "Level 4",
+        "Level 5",
+        "Level 6",
+        "Near Entrance Level 1",
+        "Access Corridor Level 2"
+      ],
+      "ED-1": [
+        "Level 1",
+        "Level 2",
+        "Level 3",
+        "Level 4",
+        "Level 5",
+        "Level 6",
+        "Near Entrance Level 1",
+        "Access Corridor Level 2"
+      ],
+      "ED-2": [
+        "Level 1",
+        "Level 2",
+        "Level 3",
+        "Level 4",
+        "Level 5",
+        "Level 6",
+        "Near Entrance Level 1",
+        "Access Corridor Level 2"
+      ],
+      "Shopping Complex": [
+        "Level 1",
+        "Level 2",
+        "Nearby Lake"
+      ],
+      "CPF": [
+        "Level 1",
+        "Level 2",
+        "Level 3"
+      ],
+      "Mess": [
+        "Sree Sai",
+        "Galav",
+        "Entrance",
+        "Level 2",
+      ],
+      "Tech Cafe": [
+        "Indoor Seating",
+        "Outdoor Seating"
+      ],
+      "NJC": [
+        "Indoor Seating",
+        "Outdoor Seating"
+      ]
+    };
 
     const landmarks = [
       { name: "Hostel Kanhar", coords: [21.2448, 81.3219], radius: 25 },
@@ -136,6 +320,171 @@
       statusDot.style.backgroundColor = themeColor;
     }
 
+    function getSublocationsForLandmark(landmarkName) {
+      const cleanName = landmarkName ? landmarkName.trim() : "";
+      const matchKey = Object.keys(landmarkSubLocations).find(
+        key => {
+          const normClean = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return normClean.includes(normKey) || normKey.includes(normClean);
+        }
+      );
+      return matchKey ? landmarkSubLocations[matchKey] : [];
+    }
+
+    // Parse existing location string
+    function parseExistingLocation(val) {
+      let base = val;
+      let floor = "N/A";
+      let room = "";
+
+      const lastParenMatch = val.match(/\s*\(([^)]+)\)$/);
+      if (lastParenMatch) {
+        const inner = lastParenMatch[1];
+        // If it is not coordinates (doesn't match lat/lng comma pattern)
+        if (!inner.match(/^-?\d+\.\d+,\s*-?\d+\.\d+$/)) {
+          base = val.substring(0, lastParenMatch.index).trim();
+          const parts = inner.split(/\s*-\s*/);
+          if (parts.length === 2) {
+            floor = parts[0].trim();
+            room = parts[1].trim();
+          } else if (parts.length === 1) {
+            const matchedLandmark = getLandmarkFromBase(base);
+            const subFloors = getSublocationsForLandmark(matchedLandmark);
+            const matchedTag = subFloors.find(f => f.toLowerCase() === parts[0].trim().toLowerCase());
+            if (matchedTag) {
+              floor = matchedTag;
+            } else {
+              room = parts[0].trim();
+            }
+          }
+        }
+      }
+      return { base, floor, room };
+    }
+
+    function getLandmarkFromBase(base) {
+      if (!base) return "";
+      const match = landmarks.find(l => base.toLowerCase().includes(l.name.toLowerCase()));
+      return match ? match.name : "";
+    }
+
+    function renderFloorPills(landmarkName) {
+      floorPillsContainer.innerHTML = '';
+      const subFloors = getSublocationsForLandmark(landmarkName);
+      
+      const floorSection = document.getElementById('floor-section');
+      if (subFloors.length === 0) {
+        if (floorSection) floorSection.classList.add('hidden');
+        return;
+      }
+      if (floorSection && isDirectLandmark(selectedBaseLocation)) {
+        floorSection.classList.remove('hidden');
+      }
+
+      subFloors.forEach(floor => {
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = `px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all duration-200 ${
+          selectedFloor === floor 
+            ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' 
+            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm'
+        }`;
+        pill.textContent = floor;
+        pill.addEventListener('click', () => {
+          if (selectedFloor === floor) {
+            selectedFloor = "N/A";
+          } else {
+            selectedFloor = floor;
+          }
+          renderFloorPills(landmarkName);
+          updatePickerSelectedValue();
+        });
+        floorPillsContainer.appendChild(pill);
+      });
+
+      // Add N/A option
+      const naPill = document.createElement('button');
+      naPill.type = 'button';
+      naPill.className = `px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all duration-200 ${
+        selectedFloor === "N/A" 
+          ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' 
+          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm'
+      }`;
+      naPill.textContent = "N/A";
+      naPill.addEventListener('click', () => {
+        selectedFloor = "N/A";
+        renderFloorPills(landmarkName);
+        updatePickerSelectedValue();
+      });
+      floorPillsContainer.appendChild(naPill);
+    }
+
+    customRoomInput.addEventListener('input', (e) => {
+      selectedRoom = e.target.value.trim();
+      updatePickerSelectedValue();
+    });
+
+    function isDirectLandmark(base) {
+      if (!base) return false;
+      return landmarks.some(l => base.trim().toLowerCase() === l.name.trim().toLowerCase());
+    }
+
+    function updateDetailsVisibility() {
+      const floorSection = document.getElementById('floor-section');
+      const roomSection = document.getElementById('room-section');
+      if (!floorSection || !roomSection) return;
+
+      const isInside = isDirectLandmark(selectedBaseLocation);
+      if (isInside) {
+        const matchedLandmark = getLandmarkFromBase(selectedBaseLocation);
+        const subFloors = getSublocationsForLandmark(matchedLandmark);
+        if (subFloors.length > 0) {
+          floorSection.classList.remove('hidden');
+        } else {
+          floorSection.classList.add('hidden');
+          selectedFloor = "N/A";
+        }
+        roomSection.classList.remove('hidden');
+      } else {
+        floorSection.classList.add('hidden');
+        roomSection.classList.add('hidden');
+        // Clear selected details when not in a building
+        selectedFloor = "N/A";
+        selectedRoom = "";
+        customRoomInput.value = "";
+      }
+    }
+
+    function updatePickerSelectedValue() {
+      if (!selectedBaseLocation) {
+        tempSelectedLocation = "";
+        pickerSelectedValue.textContent = "None";
+        pickerSelectedValue.className = "text-sm font-extrabold text-slate-400";
+        return;
+      }
+
+      let extraDetails = [];
+      const isInside = isDirectLandmark(selectedBaseLocation);
+      if (isInside) {
+        if (selectedFloor && selectedFloor !== "N/A") {
+          extraDetails.push(selectedFloor);
+        }
+        if (selectedRoom) {
+          extraDetails.push(selectedRoom);
+        }
+      }
+
+      if (extraDetails.length > 0) {
+        tempSelectedLocation = `${selectedBaseLocation} (${extraDetails.join(' - ')})`;
+      } else {
+        tempSelectedLocation = selectedBaseLocation;
+      }
+
+      pickerSelectedValue.textContent = tempSelectedLocation;
+      pickerSelectedValue.className = "text-sm font-extrabold text-indigo-600 break-words select-all";
+    }
+
     window.openPickerModal = function() {
       pickerModal.classList.remove('hidden');
       pickerModal.classList.add('flex');
@@ -160,18 +509,26 @@
           // Preload existing value into map if exists
           const val = locationInput.value;
           if (val) {
-            tempSelectedLocation = val;
-            pickerSelectedValue.textContent = val;
-            pickerSelectedValue.className = "text-xs font-bold text-indigo-600 select-all truncate max-w-[70%]";
+            const parsed = parseExistingLocation(val);
+            selectedBaseLocation = parsed.base;
+            selectedFloor = parsed.floor;
+            selectedRoom = parsed.room;
+            prevBaseLocation = selectedBaseLocation;
+
+            customRoomInput.value = selectedRoom;
+            const matchedLandmark = getLandmarkFromBase(selectedBaseLocation);
+            renderFloorPills(matchedLandmark);
+            updateDetailsVisibility();
+            updatePickerSelectedValue();
             
             // Try matching coordinates or landmarks to place pin
-            const match = landmarks.find(l => val.toLowerCase().includes(l.name.toLowerCase()));
+            const match = landmarks.find(l => selectedBaseLocation.toLowerCase().includes(l.name.toLowerCase()));
             if (match) {
               map.setView(match.coords, 20);
               placePin(match.coords[0], match.coords[1]);
             } else {
               const coordsRegex = /(-?\d+\.\d+),\s*(-?\d+\.\d+)/;
-              const found = val.match(coordsRegex);
+              const found = selectedBaseLocation.match(coordsRegex);
               if (found) {
                 const lat = parseFloat(found[1]);
                 const lng = parseFloat(found[2]);
@@ -179,6 +536,15 @@
                 placePin(lat, lng);
               }
             }
+          } else {
+            selectedBaseLocation = "";
+            selectedFloor = "N/A";
+            selectedRoom = "";
+            prevBaseLocation = "";
+            customRoomInput.value = "";
+            renderFloorPills("");
+            updateDetailsVisibility();
+            updatePickerSelectedValue();
           }
         }
       }, 310);
@@ -305,16 +671,16 @@
           pickerSelectedValue.textContent = "Outside campus bounds!";
           pickerSelectedValue.className = "text-xs font-bold text-rose-500";
           setTimeout(() => {
-            pickerSelectedValue.textContent = tempSelectedLocation || "None";
-            pickerSelectedValue.className = "text-xs font-bold text-indigo-600 select-all truncate max-w-[70%]";
+            updatePickerSelectedValue();
           }, 2000);
           return;
         }
 
         placePin(lat, lng);
 
+        let newBase = "";
         if (name) {
-          tempSelectedLocation = name;
+          newBase = name;
         } else {
           // Calculate distance to all landmarks
           const landmarkDistances = landmarks.map(l => {
@@ -330,7 +696,7 @@
 
           // 1. Direct Match Check
           if (nearestDist < nearest.radius) {
-            tempSelectedLocation = nearest.name;
+            newBase = nearest.name;
             selectedMarker.setLatLng(nearest.coords);
           } else {
             const secondNearest = landmarkDistances[1] ? landmarkDistances[1].landmark : null;
@@ -340,21 +706,32 @@
 
             // 2. Between Logic: if click is within near threshold of both, and distances are close
             if (secondNearest && nearestDist < nearestNearThreshold && secondNearestDist < secondNearest.radius * 2.5 && Math.abs(nearestDist - secondNearestDist) < 25) {
-              tempSelectedLocation = `Between ${nearest.name} and ${secondNearest.name} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+              newBase = `Between ${nearest.name} and ${secondNearest.name} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
             }
             // 3. Near Logic
             else if (nearestDist < nearestNearThreshold) {
-              tempSelectedLocation = `Near ${nearest.name} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+              newBase = `Near ${nearest.name} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
             }
             // 4. Default Campus Area
             else {
-              tempSelectedLocation = `Campus Area (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+              newBase = `Campus Area (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
             }
           }
         }
 
-        pickerSelectedValue.textContent = tempSelectedLocation;
-        pickerSelectedValue.className = "text-xs font-bold text-indigo-600 select-all truncate max-w-[70%]";
+        selectedBaseLocation = newBase;
+        const oldLandmark = getLandmarkFromBase(prevBaseLocation);
+        const newLandmark = getLandmarkFromBase(selectedBaseLocation);
+        if (oldLandmark !== newLandmark) {
+          selectedFloor = "N/A";
+          selectedRoom = "";
+          customRoomInput.value = "";
+        }
+        prevBaseLocation = selectedBaseLocation;
+
+        renderFloorPills(newLandmark);
+        updateDetailsVisibility();
+        updatePickerSelectedValue();
       }
     }
   });

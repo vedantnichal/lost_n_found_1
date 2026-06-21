@@ -112,21 +112,22 @@
                   <img src="{{ entry.photourl }}" alt="{{ entry.title }}" class="w-full h-full object-cover">
                 </div>
               {% endif %}
-
               {% if entry.status != 'resolved' %}
                 <div class="grid grid-cols-2 gap-2 mt-2">
-                  <form action="{{ url_for('resolve_item', item_id=entry.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to mark this item as resolved?');" class="w-full">
-                    <button type="submit" class="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold py-2 rounded-lg transition">
-                      Resolve
-                    </button>
-                  </form>
-                  <form action="{{ url_for('delete_item', item_id=entry.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete the listing?');" class="w-full">
-                    <button type="submit" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold py-2 rounded-lg transition">
+                  {% if entry.claimsmade %}
+                    <form action="{{ url_for('resolve_item', item_id=entry.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to mark this item as resolved?');" class="w-full">
+                      <button type="submit" class="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold py-2 rounded-lg transition cursor-pointer">
+                        Resolve
+                      </button>
+                    </form>
+                  {% endif %}
+                  <form action="{{ url_for('delete_item', item_id=entry.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete the listing?');" class="w-full {% if not entry.claimsmade %}col-span-2{% endif %}">
+                    <button type="submit" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold py-2 rounded-lg transition cursor-pointer">
                       Delete
                     </button>
                   </form>
                   <form action="{{ url_for('update_item', item_id=entry.id) }}" method="GET" class="col-span-2 mt-1">
-                    <button type="submit" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 rounded-lg transition">
+                    <button type="submit" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 rounded-lg transition cursor-pointer">
                       Update Listing
                     </button>
                   </form>

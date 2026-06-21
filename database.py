@@ -165,3 +165,29 @@ def get_assistant_history(user_email):
     response = supabase.table("AssistantChat").select("*").eq("email", user_email).execute()
     return response.data
 
+#CLAIMS_MADE AND RESOLVED_TO
+def make_claim(email, item_id):
+    response = supabase.table("Item").select("claimsmade").eq("id", item_id).execute()
+    if not response.data:
+        raise Exception("Item not found")
+    current_claims = response.data[0].get("claimsmade")
+    if current_claims is None:
+        current_claims = []
+    elif isinstance(current_claims, str):
+        current_claims = [current_claims]
+    elif not isinstance(current_claims, list):
+        current_claims = list(current_claims)
+    
+    if email not in current_claims:
+        current_claims.append(email)
+        
+    update_response = supabase.table("Item").update({"claimsmade": current_claims}).eq("id", item_id).execute()
+    print(f"Successfully added claim for {email} to item {item_id}")
+    return update_response.data
+
+def resolve_claim(email, item_id, resolved_to_id):
+    response = supabase.table("Item").update({"resolvedto": resolved_to_id, "status": "resolved"}).eq("id", item_id).eq("reporterid", email).execute()
+    print(f"Successfully resolved claim for {email} to item {item_id}")
+    return response.data
+    
+    

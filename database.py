@@ -141,4 +141,27 @@ def save_chat(msg_data):
     response = supabase.table("chat").insert(chat_data).execute()
     print(f"Successfully saved chat in Supabase: {chat_data['message']}")
 
-    
+# ASSISTANT DB
+def get_entries():
+    response = supabase.table("Item").select("*").execute()
+    return response.data
+
+def get_entries_by_user(email):
+    response = supabase.table("Item").select("*").eq("reporterid", email).execute()
+    return response.data
+
+def save_assistant_query(user_email, sender, message):
+    query_data = {
+        "id": f"assist_{secrets.token_urlsafe(8)}",
+        "email": user_email,
+        "sender": sender,
+        "message": message,
+    }
+    response = supabase.table("AssistantChat").insert(query_data).execute()
+    print(f"Successfully saved assistant chat with id in Supabase: {query_data['id']}")
+    return response.data
+
+def get_assistant_history(user_email):
+    response = supabase.table("AssistantChat").select("*").eq("email", user_email).execute()
+    return response.data
+

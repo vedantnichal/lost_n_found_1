@@ -1,5 +1,5 @@
 import os
-import uuid
+import secrets
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -26,7 +26,7 @@ def init_db():
 
 #USER DB
 def create_user(firebase_uid, email, display_name, contact_number=None, verified_email=False):
-    user_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, firebase_uid))
+    user_uuid = f"usr_{firebase_uid}"
     now = datetime.now().strftime("%b-%d-%Y %H:%M:%S")
 
     try:
@@ -67,7 +67,7 @@ def update_user_verification(email, verified=True):
 
 #ENTRY DB      
 def create_lost_entry(item_data):
-    item_data["id"] = str(uuid.uuid4())
+    item_data["id"] = f"itm_{secrets.token_urlsafe(8)}"
     response = supabase.table("Item").insert(item_data).execute()
     print(f"Successfully created lost item in Supabase: {item_data['title']}")
 
@@ -85,7 +85,7 @@ def update_item_entry(item_id, email, title, category, location, description, lo
     return response.data
 
 def create_found_entry(item_data):
-    item_data["id"] = str(uuid.uuid4())
+    item_data["id"] = f"itm_{secrets.token_urlsafe(8)}"
     response = supabase.table("Item").insert(item_data).execute()
     print(f"Successfully created found item in Supabase: {item_data['title']}")
 
@@ -132,7 +132,7 @@ def load_chat(id):
 
 def save_chat(msg_data):
     chat_data = {
-        "id": str(uuid.uuid4()),
+        "id": f"msg_{secrets.token_urlsafe(8)}",
         "itemid": msg_data["itemid"],
         "sender": msg_data["sender"],
         "receiver": msg_data.get("receiver", "public"),

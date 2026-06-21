@@ -575,6 +575,11 @@ def send_chat():
     item_id = request.form.get('item_id')
     message = request.form.get('message')
 
+    item = database.get_item_by_id(item_id)
+    if item["status"] == "resolved":
+        flash("This item has been resolved. You cannot chat anymore.", "error")
+        return redirect(url_for('chat', item_id=item_id))
+
     queryowner = database.get_reporter_id(item_id)
     
     if item_id and message and message.strip():
@@ -586,6 +591,143 @@ def send_chat():
         })
         
     return redirect(url_for('chat', item_id=item_id))
+
+def format_assistant_message(text):
+    if not text:
+        return ""
+    # Escape HTML to prevent injection while maintaining styling tags
+    html = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    
+    # 1. Parse Markdown Tables
+    table_pattern = r'((?:\|[^\n]*\|(?:\n|$))+)'
+    def table_repl(match):
+        lines = match.group(1).strip().split('\n')
+        if len(lines) < 2:
+            return match.group(1)
+        
+        table_html = '<div class="overflow-x-auto my-3 border border-slate-200 rounded-xl bg-white shadow-sm"><table class="min-w-full divide-y divide-slate-200 text-xs">'
+        has_header = False
+        
+        for line in lines:
+            if re.match(r'^[|\s:-]+$', line.replace('|', '').strip()):
+                continue
+            cells = [c.strip() for c in line.split('|') if c.strip() != '']
+            if not cells:
+                continue
+            
+            if not has_header:
+                table_html += '<thead class="bg-slate-50"><tr>'
+                for cell in cells:
+                    table_html += f'<th class="px-3 py-2 text-left font-semibold text-slate-700 uppercase tracking-wider">{cell}</th>'
+                table_html += '</tr></thead><tbody class="divide-y divide-slate-100 bg-white">'
+                has_header = True
+            else:
+                table_html += '<tr class="hover:bg-slate-50/50 transition-colors">'
+                for cell in cells:
+                    cell_content = cell
+                    
+                    # 1. Parse datetime values (e.g. 2026-06-12T22:00)
+                    dt_match = re.match(r'^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$', cell)
+                    if dt_match:
+                        try:
+                            val = cell.replace('T', ' ')
+                            if len(val) > 16:
+                                dt = datetime.datetime.strptime(val[:19], '%Y-%m-%d %H:%M:%S')
+                            else:
+                                dt = datetime.datetime.strptime(val, '%Y-%m-%d %H:%M')
+                            cell_content = dt.strftime('%b %d, %Y - %I:%M %p')
+                        except Exception:
+                            pass
+                    
+                    # 2. Check for statuses
+                    elif 'Lost' in cell:
+                        cell_content = f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-100">🔴 Lost</span>'
+                    elif 'Found' in cell:
+                        cell_content = f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">🟢 Found</span>'
+                    elif 'Resolved' in cell:
+                        cell_content = f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">✅ Resolved</span>'
+                    
+                    table_html += f'<td class="px-3 py-2 text-slate-600 font-medium whitespace-nowrap">{cell_content}</td>'
+                table_html += '</tr>'
+        if has_header:
+            table_html += '</tbody>'
+        table_html += '</table></div>'
+        return table_html
+        
+    html = re.sub(table_pattern, table_repl, html)
+    
+    # 2. Parse Bold (**text**)
+    html = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', html)
+    
+    # 3. Parse Links ([text](url))
+    html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" class="text-indigo-600 hover:text-indigo-800 font-semibold underline decoration-2 transition">\1</a>', html)
+    
+    # 4. Convert escaped HTML links (e.g. &lt;a href="/chat/..."&gt;text&lt;/a&gt;) back to styled HTML anchors
+    html = re.sub(
+        r'&lt;a\s+href="([^"]+)"&gt;((?:(?!&lt;).)*)&lt;/a&gt;',
+        r'<a href="\1" class="text-indigo-600 hover:text-indigo-800 font-semibold underline decoration-2 transition">\2</a>',
+        html
+    )
+    
+    # 5. Parse Bullet Lists
+    list_pattern = r'((?:^[ \t]*[-*+]\s+[^\n]*(?:\n|$))+)'
+    def list_repl(match):
+        list_html = '<ul class="list-disc pl-5 my-3 space-y-1.5 text-slate-600 font-medium">'
+        items = match.group(1).strip().split('\n')
+        for item in items:
+            content = re.sub(r'^\s*[-*+]\s+', '', item)
+            list_html += f'<li>{content}</li>'
+        list_html += '</ul>'
+        return list_html
+        
+    html = re.sub(list_pattern, list_repl, html, flags=re.MULTILINE)
+    
+    # 6. Parse Linebreaks
+    html = html.replace('\n', '<br>')
+    return html
+
+@app.template_filter('markdown_format')
+def markdown_format_filter(text):
+    return format_assistant_message(text)
+
+@app.route("/assistant_page", methods=["GET", "POST"])
+def assistant_page():
+    if 'user_email' not in session:
+        flash("Please log in to access the AI assistant.", "error")
+        return redirect(url_for('login'))
+    
+    email = session['user_email']
+
+    if request.method == 'POST':
+        message = request.form.get('message', '').strip()
+        if message:
+            # 1. Save user's message to Supabase assistant table
+            database.save_assistant_query(email, "user", message)
+            
+            # 2. Invoke LangGraph Assistant Agent
+            config = {"configurable": {"thread_id": email}}
+            try:
+                result = assistant_app.invoke({"messages": [HumanMessage(content=message)]}, config=config)
+                response_text = result["messages"][-1].content
+            except Exception as e:
+                print(f"Error invoking AI assistant: {e}")
+                response_text = "Sorry, I am facing an issue processing your request right now."
+                
+            # 3. Save assistant's reply to Supabase assistant table
+            database.save_assistant_query(email, "assistant", response_text)
+            
+        return redirect(url_for('assistant_page', active=1))
+
+    # GET Request
+    show_history = (request.args.get('active') == '1') or (request.args.get('show_history') == 'true')
+
+    try:
+        history = database.get_assistant_history(email)
+    except Exception as e:
+        print(f"Error loading assistant history: {e}")
+        history = []
+        
+    return render_template("assistant.html", email=email, history=history, show_history=show_history)
 
 if __name__ == '__main__':
     database.init_db()

@@ -1,3 +1,4 @@
+import database
 from json import decoder
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from pydantic import ValidationError
@@ -615,6 +616,15 @@ def chat(item_id):
     if not item:
         flash("Item not found.", "error")
         return redirect(url_for('dashboard'))
+    
+    claims = item.get('claimsmade')
+    if not claims:
+        item['claimsmade'] = []
+    elif isinstance(claims, str):
+        item['claimsmade'] = [claims]
+    elif not isinstance(claims, list):
+        item['claimsmade'] = list(claims)
+        
     messages = database.load_chat(item_id)
     return render_template('chat.html', email=user_email, item=item, messages=messages)
 
@@ -778,6 +788,80 @@ def assistant_page():
         active_items = []
         
     return render_template("assistant.html", email=email, history=history, show_history=show_history, active_items=active_items)
+
+#====>
+@app.route('/claim_item', methods=['POST'])
+def claim_item():
+    if 'user_email' not in session:
+        flash("Please log in to claim items.", "error")
+        return redirect(url_for('login'))
+    
+    email = session["user_email"]
+    item_id = request.form.get("item_id")
+    
+    if not item_id:
+        flash("Item ID is missing.", "error")
+        return redirect(url_for("chat", item_id=item_id))
+    
+    item = database.get_item_by_id(item_id)
+    if not item:
+        flash("Item not found.", "error")
+        return redirect(url_for("chat", item_id=item_id))
+    
+    if item.get("status") == "resolved":
+        flash("Item already resolved.", "error")
+        return redirect(url_for("chat", item_id=item_id))
+
+    if item.get("reporterid") == email:
+        flash("You cannot claim your own item.", "error")
+        return redirect(url_for("chat", item_id=item_id))
+
+    try:
+        database.make_claim(email, item_id)
+        flash("Claim has been made for item successfully.", "success")
+    except Exception as e:
+        flash(f"Error making claim: {str(e)}", "error")
+        
+    return redirect(url_for("chat", item_id=item_id))
+
+@app.route('/resolve_to', methods=["POST"])
+def resolve_to():
+    if 'user_email' not in session:
+        flash("Please log in to resolve claims.", "error")
+        return redirect(url_for('login'))
+        
+    email = session["user_email"]
+    item_id = request.form.get("item_id")
+    resolved_to = request.form.get("resolved_to")
+    
+    if not item_id:
+        flash("Item ID is missing.", "error")
+        return redirect(url_for("chat", item_id=item_id))
+    
+    item = database.get_item_by_id(item_id)
+    if not item:
+        flash("Item not found.", "error")
+        return redirect(url_for("chat", item_id=item_id))
+
+    if item.get("status") == "resolved":
+        flash("Item already resolved.", "error")
+        return redirect(url_for("chat", item_id=item_id))
+
+    if item.get("reporterid") != email:
+        flash("You are not the reporter of this item.", "error")
+        return redirect(url_for("chat", item_id=item_id))
+
+    try:
+        if resolved_to:
+            database.resolve_claim(email, item_id, resolved_to)
+            flash(f"Item resolved and successfully handed over to {resolved_to}!", "success")
+        else:
+            flash("Please select a user to resolve the item to.", "error")
+    except Exception as e:
+        flash(f"Error resolving item: {str(e)}", "error")
+        
+    return redirect(url_for("chat", item_id=item_id))
+
 
 if __name__ == '__main__':
     database.init_db()

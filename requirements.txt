@@ -4,3 +4,7 @@ python-dotenv>=1.0.0
 supabase>=1.0.0
 Pyrebase4>=4.5.0
 gunicorn>=20.1.0
+langchain
+langchain_core
+langchain_groq
+langgraph

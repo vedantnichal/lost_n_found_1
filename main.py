@@ -4,6 +4,8 @@ from pydantic import ValidationError
 import login_data
 import database
 from cam import upload_photo
+from Assistant import app as assistant_app
+from langchain_core.messages import HumanMessage
 
 app = Flask(__name__, template_folder="templates")
 app.secret_key = login_data.super_secret

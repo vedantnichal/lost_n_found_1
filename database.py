@@ -124,19 +124,19 @@ def create_found_entry(item_data):
     print(f"Successfully created found item in Supabase: {item_data['title']}")
 
 def get_lost_entries():
-    response = supabase.table("Item").select(columnsItem).eq("type", "lost").execute()
+    response = supabase.table("Item").select(",".join(columnsItem)).eq("type", "lost").execute()
     return response.data
 
 def get_lost_entries_by_user(email):
-    response = supabase.table("Item").select(columnsItem).eq("type", "lost").eq("reporterid", email).execute()
+    response = supabase.table("Item").select(",".join(columnsItem)).eq("type", "lost").eq("reporterid", email).execute()
     return response.data
 
 def get_found_entries():
-    response = supabase.table("Item").select(columnsItem).eq("type", "found").execute()
+    response = supabase.table("Item").select(",".join(columnsItem)).eq("type", "found").execute()
     return response.data
 
 def get_found_entries_by_user(email):
-    response = supabase.table("Item").select(columnsItem).eq("type", "found").eq("reporterid", email).execute()
+    response = supabase.table("Item").select(",".join(columnsItem)).eq("type", "found").eq("reporterid", email).execute()
     return response.data
 
 def resolve_entry(item_id, email):
@@ -148,7 +148,7 @@ def delete_entry(item_id, email):
     return response.data
 
 def get_item_by_id(item_id):
-    response = supabase.table("Item").select(columnsItem).eq("id", item_id).execute()
+    response = supabase.table("Item").select(",".join(columnsItem)).eq("id", item_id).execute()
     if response.data:
         return response.data[0]
     return None
@@ -177,11 +177,11 @@ def save_chat(msg_data):
 
 # ASSISTANT DB
 def get_entries():
-    response = supabase.table("Item").select(columnsItem).execute()
+    response = supabase.table("Item").select(",".join(columnsItem)).execute()
     return response.data
 
 def get_entries_by_user(email):
-    response = supabase.table("Item").select(columnsItem).eq("reporterid", email).execute()
+    response = supabase.table("Item").select(",".join(columnsItem)).eq("reporterid", email).execute()
     return response.data
 
 def get_entries_with_embeddings():

@@ -397,8 +397,9 @@ def make_report(email = None, title = None, description = None, location = None,
 tools = [fetch_items, fetch_reported_by_user, fetch_items_nearby, fetch_similar_items, make_report]
 tool_node = ToolNode(tools)
 
-llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0.0)
+# llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0.0)
 # llm = ChatGroq(model_name = "openai/gpt-oss-20b", temperature = 0.0)
+llm = ChatGroq(model_name = "llama-3.3-70b-versatile", temperature = 0)
 model = llm.bind_tools(tools)
 
 def chat_node(state: AgentState, config):

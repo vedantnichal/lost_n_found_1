@@ -3,6 +3,7 @@ import secrets
 from datetime import datetime
 from dotenv import load_dotenv
 import google.generativeai as genai
+from supabase import create_client, Client
 
 load_dotenv()
 
@@ -29,7 +30,6 @@ def get_embeddings(item):
     return embedding
 
 try:
-    from supabase import create_client, Client
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_KEY")
     if supabase_url and supabase_key:

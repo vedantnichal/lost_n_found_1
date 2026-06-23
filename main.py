@@ -1,15 +1,12 @@
 import database
-from json import decoder
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from pydantic import ValidationError
 import login_data
-import database
 from datetime import datetime
 import re
 from cam import upload_photo
 from Assistant import app as assistant_app
 from langchain_core.messages import HumanMessage
-from datetime import datetime
 
 app = Flask(__name__, template_folder="templates")
 app.secret_key = login_data.super_secret
@@ -396,7 +393,7 @@ def report_lost():
                 return render_template(
                     'report-lost.html',
                     email=user_email,
-                    user_found_entries=user_lost_entries
+                    user_lost_entries=user_lost_entries
                 )
 
         except (ValueError, TypeError):
@@ -404,7 +401,7 @@ def report_lost():
             return render_template(
                 'report-lost.html',
                 email=user_email,
-                user_found_entries=user_lost_entries
+                user_lost_entries=user_lost_entries
             )
 
         try:
@@ -481,7 +478,7 @@ def report_found():
         
         if not losttime or not losttime.strip():
             flash("Lost time is required.", "error")
-            return render_template('report-found.html', email=user_email, user_lost_entries=user_found_entries)
+            return render_template('report-found.html', email=user_email, user_found_entries=user_found_entries)
         
         try:
             selected_time = datetime.fromisoformat(losttime)
@@ -690,9 +687,9 @@ def format_assistant_message(text):
                         try:
                             val = cell.replace('T', ' ')
                             if len(val) > 16:
-                                dt = datetime.datetime.strptime(val[:19], '%Y-%m-%d %H:%M:%S')
+                                dt = datetime.strptime(val[:19], '%Y-%m-%d %H:%M:%S')
                             else:
-                                dt = datetime.datetime.strptime(val, '%Y-%m-%d %H:%M')
+                                dt = datetime.strptime(val, '%Y-%m-%d %H:%M')
                             cell_content = dt.strftime('%b %d, %Y - %I:%M %p')
                         except Exception:
                             pass

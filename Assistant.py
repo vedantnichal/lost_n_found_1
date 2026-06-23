@@ -5,15 +5,13 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.graph.message import add_messages
 from dotenv import load_dotenv
-import os
-from typing import Annotated, Literal, Optional, Sequence, TypedDict, List, Dict, Any, Union
+from typing import Annotated, Literal, Optional, TypedDict, List, Dict, Union
 from langchain_core.tools import tool
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from sklearn.metrics.pairwise import cosine_similarity
-from langchain_core.load import loads
-import difflib
-import re
+import difflib, re, requests, base64, os
 import google.generativeai as genai
+from pydantic import BaseModel, Field
 
 system_message_content = """You are the "LostLinks Assistant", the official AI helper for LostLinks—a smart web portal designed to help users report, find, and recover lost belongings.
 
@@ -134,6 +132,7 @@ load_dotenv()
 os.environ["GROQ_API_KEY"] = os.getenv("groq")
 api_key = os.getenv("gemini_key")
 genai.configure(api_key=api_key)
+
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
     items: Dict
@@ -282,44 +281,44 @@ def fetch_similar_items(query_text):
 
     return {"similar_items": similar_items}
 
-def analyze_item_image(image_url: str):
-    import urllib.request
-    import json
-    
-    try:
-        req = urllib.request.Request(
-            image_url, 
-            headers={'User-Agent': 'Mozilla/5.0'}
-        )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            image_bytes = response.read()
-        mime_type = response.info().get_content_type()
-        if not mime_type or not mime_type.startswith("image/"):
-            mime_type = "image/jpeg"
-    except Exception as e:
-        print(f"Error fetching image from URL {image_url}: {e}")
-        return None, None
-
-    prompt = """Analyze the image of this found/lost item. Determine its category and provide a brief description.
-    You MUST output a valid JSON object matching this schema:
-    {
-      "category": "Electronics" | "Documents" | "Keys/Wallets" | "Clothing" | "Accessories" | "Sports & Fitness" | "Other",
-      "description": "Concise description detailing color, brand, distinct features, and condition (2-3 sentences max)"
-    }
+class ImageAnalysis(BaseModel):
     """
-    
+    Schema for analyzing an item image.
+    """
+    title: str = Field(description="A title for the item.")
+    category: Literal["Electronics", "Books & Documents", "Clothing", "Accessories", "Keys & Wallets", "Sports & Fitness", "Other"]
+    description: str = Field(description="A brief description of the item.")
+
+def analyze_item_image(image_url: str) -> dict:
+    """
+    Downloads and analyzes an item image using Gemini model to extract title, category, and description.
+    """
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content([
-            {"mime_type": mime_type, "data": image_bytes},
-            prompt
-        ], generation_config={"response_mime_type": "application/json"})
-        
-        data = json.loads(response.text)
-        return data.get("category"), data.get("description")
+        response = requests.get(image_url)
+        response.raise_for_status()
+        image_bytes = response.content
+        mime_type = response.headers.get("Content-Type", "image/jpeg")
     except Exception as e:
-        print(f"Error generating description from image: {e}")
-        return None, None
+        return {"error": f"Error downloading image: {str(e)}"}
+    
+    model = genai.GenerativeModel("models/gemini-2.5-flash")
+    
+    prompt = "Analyze this image of a lost or found item and extract its title, category, and a brief description."
+    
+    image_part = {
+        "mime_type": mime_type,
+        "data": image_bytes
+    }
+    
+    response = model.generate_content(
+        [prompt, image_part],
+        generation_config=genai.GenerationConfig(
+            response_mime_type="application/json",
+            response_schema=ImageAnalysis
+        )
+    )
+    
+    return {"analysis" : ImageAnalysis.model_validate_json(response.text)}
 
 @tool
 def make_report(email = None, title = None, description = None, location = None, category = None, image = None, type = None, losttime = None):
@@ -340,26 +339,16 @@ def make_report(email = None, title = None, description = None, location = None,
     Returns:
         A dictionary containing the report.
     """
-    
     if type == "found":
         if not image or not image.strip():
-            take_image_input = True
             return {"report_tool": "An image of the found item is mandatory. Please ask the user to upload or capture a photo first using the attachment button (📎) next to the chat input."}
-        if not email or not title or not losttime or not location:
-            return {"report_tool": "Please provide atleast basic details: email, title, location, found time"}
-        
-        if not description or not category:
-            gen_cat, gen_desc = analyze_item_image(image)
-            if not category and gen_cat:
-                category = gen_cat
-            if not description and gen_desc:
-                description = gen_desc
-                
-        if not category:
-            category = "Other"
-        if not description:
-            description = f"A found item reported as '{title}'."
-
+        if not email or not losttime or not location:
+            return {"report_tool": "Please provide atleast basic details: email, location, found time"}
+        if not title or not category or not description:
+            analysis = analyze_item_image(image)
+            title = analysis["analysis"].title
+            category = analysis["analysis"].category
+            description = analysis["analysis"].description
         item = {
             "reporterid": email,
             "type": "found",
@@ -382,16 +371,10 @@ def make_report(email = None, title = None, description = None, location = None,
             return {"report_tool": "Please provide at least email and title."}
             
         if image and image.strip() and (not description or not category):
-            gen_cat, gen_desc = analyze_item_image(image)
-            if not category and gen_cat:
-                category = gen_cat
-            if not description and gen_desc:
-                description = gen_desc
-                
-        if not category:
-            category = "Other"
-        if not description:
-            description = f"A lost item reported as '{title}'."
+            analysis = analyze_item_image(image)    
+            title = analysis["analysis"].title
+            category = analysis["analysis"].category
+            description = analysis["analysis"].description
 
         item = {
             "reporterid": email,
@@ -435,20 +418,3 @@ app.add_edge(START, "chat")
 app.add_conditional_edges("chat", tools_condition, {"tools": "tool_node", END: END})
 app.add_edge("tool_node", "chat")
 app = app.compile(checkpointer = MemorySaver())
-
-if __name__ == "__main__":
-    config = {"configurable":{"thread_id": "sumiranvithhal@iitbhilai.ac.in"}}
-    while True:
-        user_input = input("User: ")
-        if user_input == "exit":
-            break
-        result= app.invoke({"messages": [HumanMessage(content=user_input)]}, config = config)
-        # for chunk in app.stream({"messages": [HumanMessage(content=user_input)]}, config = config, stream_mode = "messages", stream_events = True):
-        #     print(chunk)
-        #     if chunk["type"] == "messages":
-        #         msg_chunk, metadata = chunk["data"]
-        #         if msg_chunk.content:
-        #             print(msg_chunk.content, end = "", flush = True)
-        print("\n" + "="*75)
-        print(result["messages"])
-        print("="*75)

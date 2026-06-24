@@ -7,7 +7,7 @@ from langgraph.graph.message import add_messages
 from dotenv import load_dotenv
 from typing import Annotated, Literal, Optional, TypedDict, List, Dict, Union
 from langchain_core.tools import tool
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 from sklearn.metrics.pairwise import cosine_similarity
 import difflib, re, requests, base64, os
 import google.generativeai as genai
@@ -16,6 +16,9 @@ from pydantic import BaseModel, Field
 system_message_content = """You are the "LostLinks Assistant", the official AI helper for LostLinks—a smart web portal designed to help users report, find, and recover lost belongings.
 
 Your role is to assist users in querying the database for lost/found items, finding their own reports, and guiding them on how to navigate the web application.
+Remember if a user says "I lost", "I lost my" or "I lost my watch" or "lost watch" or "my lost watch", it means the user has lost an item. So if user wants to create a report of it type should be lost,
+while if the users wants to search/get details/know about a lost item, It means the item if exists in database can bre found under the type "found".
+Similarly if the user wants to report an item as found, it means the user has found an item. So if user wants to create a report of it type should be found.
 
 ### 1. CORE CAPABILITIES & TOOLS
 You have access to these tools:
@@ -257,8 +260,7 @@ def fetch_similar_items(query_text):
         A dictionary containing the similar items.
     """
     try:
-        result = genai.embed_content( model="models/gemini-embedding-2", content=query_text, task_type="retrieval_document", output_dimensionality=256)
-        query_embedding = result['embedding']
+        query_embedding = database.embedding_model.encode(query_text).tolist()
     except Exception as e:
         return {"error": f"Error generating query embedding: {str(e)}"}
 
@@ -270,14 +272,21 @@ def fetch_similar_items(query_text):
     for item in all_items:
         try:
             item_embedding = eval(item["embeddings"])
-            score = cosine_similarity([query_embedding], [item_embedding])[0][0]
-            scores.append((score, item))
+            if not item_embedding or len(item_embedding) != len(query_embedding):
+                item_embedding = database.get_embeddings(item)
+            
+            if item_embedding:
+                score = cosine_similarity([query_embedding], [item_embedding])[0][0]
+                scores.append((score, item))
         except Exception as e:
             print(f"Error processing item {item.get('id')}: {e}")
             continue
 
     scores.sort(key=lambda x: x[0], reverse=True)
-    similar_items = [item[1] for item in scores[:3]]
+    similar_items = []
+    for score, item in scores[:3]:
+        clean_item = {k: v for k, v in item.items() if k != "embeddings"}
+        similar_items.append(clean_item)
 
     return {"similar_items": similar_items}
 
@@ -397,14 +406,11 @@ def make_report(email = None, title = None, description = None, location = None,
 tools = [fetch_items, fetch_reported_by_user, fetch_items_nearby, fetch_similar_items, make_report]
 tool_node = ToolNode(tools)
 
-llm1 = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.0)
-llm2 = ChatGroq(model_name = "openai/gpt-oss-20b", temperature = 0.0)
-llm3 = ChatGroq(model_name = "llama-3.1-8b-instant", temperature = 0)
-model1 = llm1.bind_tools(tools)
-model2 = llm2.bind_tools(tools)
-model3 = llm3.bind_tools(tools)
-
-models = [model1, model2, model3]
+# llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0.0)
+# llm = ChatGroq(model_name = "openai/gpt-oss-120b", temperature = 0.0)
+# llm = ChatGroq(model_name="llama-3.3-70b-versatile",temperature=0.0)
+llm = ChatGroq(model_name="qwen/qwen3.6-27b", temperature=0.0)
+model = llm.bind_tools(tools)
 
 def chat_node(state: AgentState, config):
     """Interact with LLM to generate a response"""
@@ -413,13 +419,7 @@ def chat_node(state: AgentState, config):
         content=system_message.content + f"\n\n### CURRENT USER CONTEXT\nThe email of the user you are currently chatting with is: '{email}'. When executing fetch_reported_by_user, ALWAYS pass this email as the argument."
     )
     messages = [dynamic_system_message] + state["messages"]
-    for model in models:
-        try:
-            response = model.invoke(messages)
-            if response.tool_calls:
-                return {"messages": response}
-        except Exception as e:
-            continue
+    return {"messages": model.invoke(messages)}
 
 app = StateGraph(AgentState)
 app.add_node("chat", chat_node)
@@ -428,4 +428,15 @@ app.add_node("tool_node", tool_node)
 app.add_edge(START, "chat")
 app.add_conditional_edges("chat", tools_condition, {"tools": "tool_node", END: END})
 app.add_edge("tool_node", "chat")
-app = app.compile(checkpointer = MemorySaver())
+app = app.compile()
+
+
+# if __name__ == "__main__":
+#     while True:
+#         user_input = input("User: ")
+#         if user_input.lower() == "exit":
+#             break
+#         response = app.invoke({"messages": [HumanMessage(content=user_input)]})
+#         print("Assistant: ", response["messages"][-1].content)
+#         print("="*81)
+#         print(response["messages"])

@@ -2,10 +2,24 @@ import os
 import secrets
 from datetime import datetime
 from dotenv import load_dotenv
-import google.generativeai as genai
+from fastembed import TextEmbedding
 from supabase import create_client, Client
 
 load_dotenv()
+
+# Initialize fastembed locally (uses ONNX Runtime CPU, zero PyTorch/CUDA dependencies, extremely fast and lightweight)
+embedding_model_local = TextEmbedding()
+
+class ONNXEmbeddingModel:
+    def encode(self, text):
+        try:
+            embeddings = list(embedding_model_local.embed([text]))
+            return embeddings[0].tolist()
+        except Exception as e:
+            raise Exception(f"Error running ONNX model locally: {str(e)}")
+
+# Compatible wrapper exposed for Assistant.py
+embedding_model = ONNXEmbeddingModel()
 
 def get_embeddings(item):
     fields = [
@@ -17,17 +31,10 @@ def get_embeddings(item):
     text = " ".join([str(f).strip() for f in fields if f is not None])
     
     try:
-        result = genai.embed_content(
-            model="models/gemini-embedding-2",
-            content=text,
-            task_type="retrieval_document",
-            output_dimensionality=256
-        )
-        embedding = result['embedding']
+        return embedding_model.encode(text)
     except Exception as e:
         print(f"Error generating embeddings: {e}")
         return None
-    return embedding
 
 try:
     supabase_url = os.getenv("SUPABASE_URL")

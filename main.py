@@ -783,7 +783,15 @@ def assistant_page():
             config = {"configurable": {"thread_id": email}}
             try:
                 result = assistant_app.invoke({"messages": [HumanMessage(content=agent_msg_content)]}, config=config)
-                response_text = result["messages"][-1].content
+                for node_name, output in result.items():
+                    if node_name == "tools":
+                        if output["messages"]:
+                            last_msg = output["messages"][-1]
+                            response_text = last_msg.content
+                    elif node_name == "llm":
+                        if output["messages"]:
+                            last_msg = output["messages"][-1]
+                            response_text = last_msg.content
             except Exception as e:
                 print(f"Error invoking AI assistant: {e}")
                 response_text = "Sorry, I am facing an issue processing your request right now."

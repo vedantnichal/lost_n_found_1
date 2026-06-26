@@ -12,7 +12,7 @@
     </div>
 
     {% if user %}
-    <form action="{{ url_for('update_profile') }}" method="POST" class="space-y-6">
+    <form action="{{ url_for('update_profile') }}" method="POST" id="update-profile-form" class="space-y-6">
       <!-- Display Name Input -->
       <div>
         <label for="displayName" class="block text-sm font-semibold text-slate-700 mb-2">Display Name</label>
@@ -53,7 +53,7 @@
       </div>
 
       <div class="flex flex-col sm:flex-row gap-4 mt-8 pt-4 w-full">
-        <button type="submit" class="flex-1 flex items-center justify-center text-center bg-primary hover:bg-indigo-600 text-white font-bold rounded-xl px-4 py-3 shadow-md shadow-indigo-200 transition">
+        <button type="submit" id="update-profile-submit-btn" class="flex-1 flex items-center justify-center text-center bg-primary hover:bg-indigo-600 text-white font-bold rounded-xl px-4 py-3 shadow-md shadow-indigo-200 transition">
           Save Changes
         </button>
         <a href="{{ url_for('profile') }}" class="flex-1 flex items-center justify-center text-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl px-4 py-3 transition">
@@ -61,6 +61,15 @@
         </a>
       </div>
     </form>
+    <script>
+    document.getElementById('update-profile-form').addEventListener('submit', function() {
+        const submitBtn = document.getElementById('update-profile-submit-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Saving...';
+        }
+    });
+    </script>
     {% else %}
       <div class="text-center text-slate-500 font-medium py-10 bg-slate-50 rounded-xl border border-slate-100">
         User profile not found.

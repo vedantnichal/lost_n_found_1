@@ -10,7 +10,7 @@
       <p class="text-slate-500 font-medium">Make changes to your reported item's details</p>
     </div>
 
-    <form action="{{ url_for('update_item', item_id=item.id) }}" method="POST" enctype="multipart/form-data" novalidate class="space-y-6">
+    <form action="{{ url_for('update_item', item_id=item.id) }}" method="POST" id="update-item-form" enctype="multipart/form-data" novalidate class="space-y-6">
       
       <!-- Title Input -->
       <div>
@@ -66,7 +66,7 @@
       {% include 'camera.html' %}
 
       <div class="flex gap-4 mt-8 pt-4 border-t border-slate-100">
-        <button type="submit" class="flex-1 bg-primary hover:bg-indigo-600 text-white font-bold rounded-xl px-4 py-3 shadow-md shadow-indigo-200 transition">
+        <button type="submit" id="update-item-submit-btn" class="flex-1 bg-primary hover:bg-indigo-600 text-white font-bold rounded-xl px-4 py-3 shadow-md shadow-indigo-200 transition">
           Save Updates
         </button>
         <a href="{{ url_for('dashboard') }}" class="flex-1 text-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl px-4 py-3 transition">
@@ -76,6 +76,16 @@
     </form>
   </div>
 </div>
+
+<script>
+document.getElementById('update-item-form').addEventListener('submit', function() {
+    const submitBtn = document.getElementById('update-item-submit-btn');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Saving...';
+    }
+});
+</script>
 
 <!-- INCLUDE CAMERA JAVASCRIPT LOGIC -->
 {% include 'cam_script.js' %}

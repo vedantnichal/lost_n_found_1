@@ -169,7 +169,7 @@
       </div>
       
       <!-- Chat Input Send Area -->
-      <form action="{{ url_for('send_chat') }}" method="POST" class="p-4 bg-slate-900 border-t border-slate-800">
+      <form action="{{ url_for('send_chat') }}" method="POST" id="chat-send-form" class="p-4 bg-slate-900 border-t border-slate-800">
         <div class="flex gap-2">
           <input type="hidden" name="item_id" value="{{ item.id }}">
           <input 
@@ -181,7 +181,7 @@
             required
             autocomplete="off"
           >
-          <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl px-6 py-3 transition shadow-md shadow-indigo-900/50">
+          <button type="submit" id="chat-send-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl px-6 py-3 transition shadow-md shadow-indigo-900/50">
             Send
           </button>
         </div>
@@ -196,6 +196,14 @@
     const log = document.getElementById('chat-messages-log');
     if (log) {
       log.scrollTop = log.scrollHeight;
+    }
+  });
+
+  document.getElementById('chat-send-form').addEventListener('submit', function() {
+    const submitBtn = document.getElementById('chat-send-btn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Sending...';
     }
   });
 </script>

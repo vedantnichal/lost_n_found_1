@@ -170,24 +170,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
     dateInput.max = `${year}-${month}-${day}T${hours}:${minutes}`;
 });
+
+document.getElementById('report-found-form').addEventListener('submit', function(e) {
+    const fileUploaded = document.getElementById('photo-file').files.length > 0;
+    const cameraPhoto = document.getElementById('photo-base64').value.trim() !== '';
+
+    if (!fileUploaded && !cameraPhoto) {
+        e.preventDefault();
+        alert('Please upload or capture a photo.');
+        return;
+    }
+
+    const submitBtn = document.getElementById('report-found-submit-btn');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Submitting...';
+    }
+});
 </script>
 
 <!-- INCLUDE CAMERA JAVASCRIPT LOGIC -->
 {% include 'cam_script.js' %}
 {% endblock %}
-
-<script>
-document.getElementById('report-found-form').addEventListener('submit', function(e) {
-
-    const fileUploaded =
-        document.getElementById('photo-file').files.length > 0;
-
-    const cameraPhoto =
-        document.getElementById('photo-base64').value.trim() !== '';
-
-    if (!fileUploaded && !cameraPhoto) {
-        e.preventDefault();
-        alert('Please upload or capture a photo.');
-    }
-});
-</script>

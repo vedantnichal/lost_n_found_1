@@ -7,15 +7,19 @@ from langgraph.graph.message import add_messages
 from dotenv import load_dotenv
 from typing import Annotated, Literal, Optional, TypedDict, List, Dict, Union
 from langchain_core.tools import tool
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 from sklearn.metrics.pairwise import cosine_similarity
 import difflib, re, requests, base64, os
 import google.generativeai as genai
 from pydantic import BaseModel, Field
 
+
 system_message_content = """You are the "LostLinks Assistant", the official AI helper for LostLinks—a smart web portal designed to help users report, find, and recover lost belongings.
 
 Your role is to assist users in querying the database for lost/found items, finding their own reports, and guiding them on how to navigate the web application.
+Remember if a user says "I lost", "I lost my" or "I lost my watch" or "lost watch" or "my lost watch", it means the user has lost an item. So if user wants to create a report of it type should be lost,
+while if the users wants to search/get details/know about a lost item, It means the item if exists in database can bre found under the type "found".
+Similarly if the user wants to report an item as found, it means the user has found an item. So if user wants to create a report of it type should be found.
 
 ### 1. CORE CAPABILITIES & TOOLS
 You have access to these tools:
@@ -129,9 +133,12 @@ system_message = SystemMessage(content=system_message_content)
 
 load_dotenv()
 
-os.environ["GROQ_API_KEY"] = os.getenv("groq")
-api_key = os.getenv("gemini_key")
-genai.configure(api_key=api_key)
+# Robust casing fallbacks for API Keys
+groq_key = os.getenv("groq") or os.getenv("GROQ_API_KEY")
+os.environ["GROQ_API_KEY"] = groq_key if groq_key else ""
+api_key = os.getenv("gemini_key") or os.getenv("GEMINI_API_KEY")
+if api_key:
+    genai.configure(api_key=api_key)
 
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
@@ -257,8 +264,7 @@ def fetch_similar_items(query_text):
         A dictionary containing the similar items.
     """
     try:
-        result = genai.embed_content( model="models/gemini-embedding-2", content=query_text, task_type="retrieval_document", output_dimensionality=256)
-        query_embedding = result['embedding']
+        query_embedding = database.embedding_model.encode(query_text).tolist()
     except Exception as e:
         return {"error": f"Error generating query embedding: {str(e)}"}
 
@@ -270,14 +276,21 @@ def fetch_similar_items(query_text):
     for item in all_items:
         try:
             item_embedding = eval(item["embeddings"])
-            score = cosine_similarity([query_embedding], [item_embedding])[0][0]
-            scores.append((score, item))
+            if not item_embedding or len(item_embedding) != len(query_embedding):
+                item_embedding = database.get_embeddings(item)
+            
+            if item_embedding:
+                score = cosine_similarity([query_embedding], [item_embedding])[0][0]
+                scores.append((score, item))
         except Exception as e:
             print(f"Error processing item {item.get('id')}: {e}")
             continue
 
     scores.sort(key=lambda x: x[0], reverse=True)
-    similar_items = [item[1] for item in scores[:3]]
+    similar_items = []
+    for score, item in scores[:3]:
+        clean_item = {k: v for k, v in item.items() if k != "embeddings"}
+        similar_items.append(clean_item)
 
     return {"similar_items": similar_items}
 
@@ -301,24 +314,26 @@ def analyze_item_image(image_url: str) -> dict:
     except Exception as e:
         return {"error": f"Error downloading image: {str(e)}"}
     
-    model = genai.GenerativeModel("models/gemini-2.5-flash")
-    
-    prompt = "Analyze this image of a lost or found item and extract its title, category, and a brief description."
-    
-    image_part = {
-        "mime_type": mime_type,
-        "data": image_bytes
-    }
-    
-    response = model.generate_content(
-        [prompt, image_part],
-        generation_config=genai.GenerationConfig(
-            response_mime_type="application/json",
-            response_schema=ImageAnalysis
+    try:
+        model = genai.GenerativeModel("models/gemini-2.5-flash")
+        
+        prompt = "Analyze this image of a lost or found item and extract its title, category, and a brief description."
+        
+        image_part = {
+            "mime_type": mime_type,
+            "data": image_bytes
+        }
+        
+        response = model.generate_content(
+            [prompt, image_part],
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json",
+                response_schema=ImageAnalysis
+            )
         )
-    )
-    
-    return {"analysis" : ImageAnalysis.model_validate_json(response.text)}
+        return {"analysis" : ImageAnalysis.model_validate_json(response.text)}
+    except Exception as e:
+        return {"error": f"Gemini API error: {str(e)}"}
 
 @tool
 def make_report(email = None, title = None, description = None, location = None, category = None, image = None, type = None, losttime = None):
@@ -343,9 +358,11 @@ def make_report(email = None, title = None, description = None, location = None,
         if not image or not image.strip():
             return {"report_tool": "An image of the found item is mandatory. Please ask the user to upload or capture a photo first using the attachment button (📎) next to the chat input."}
         if not email or not losttime or not location:
-            return {"report_tool": "Please provide atleast basic details: email, location, found time"}
+            return {"report_tool": "Please provide atleast basic details: location, found time"}
         if not title or not category or not description:
             analysis = analyze_item_image(image)
+            if "error" in analysis:
+                return {"report_tool": f"Error analyzing image: {analysis['error']}. Please provide manual details (title, description, and category) or try again."}
             title = analysis["analysis"].title
             category = analysis["analysis"].category
             description = analysis["analysis"].description
@@ -368,10 +385,12 @@ def make_report(email = None, title = None, description = None, location = None,
             
     elif type == "lost":
         if not email or not title:
-            return {"report_tool": "Please provide at least email and title."}
+            return {"report_tool": "Please provide at least title."}
             
         if image and image.strip() and (not description or not category):
             analysis = analyze_item_image(image)    
+            if "error" in analysis:
+                return {"report_tool": f"Error analyzing image: {analysis['error']}. Please provide manual details or try again."}
             title = analysis["analysis"].title
             category = analysis["analysis"].category
             description = analysis["analysis"].description
@@ -397,14 +416,28 @@ def make_report(email = None, title = None, description = None, location = None,
 tools = [fetch_items, fetch_reported_by_user, fetch_items_nearby, fetch_similar_items, make_report]
 tool_node = ToolNode(tools)
 
-llm1 = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.0)
-llm2 = ChatGroq(model_name = "openai/gpt-oss-20b", temperature = 0.0)
-llm3 = ChatGroq(model_name = "llama-3.1-8b-instant", temperature = 0)
-model1 = llm1.bind_tools(tools)
-model2 = llm2.bind_tools(tools)
-model3 = llm3.bind_tools(tools)
+def get_assistant_model():
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    
+    primary_llm = ChatGroq(
+        model_name="qwen/qwen3.6-27b",
+        temperature=0.0,
+        max_retries=3,
+        groq_api_key=groq_api_key
+    )
+    
+    fallback_llms = [
+        ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.0, max_retries=2, groq_api_key=groq_api_key),
+        ChatGroq(model_name="llama-3.1-8b-instant", temperature=0.0, max_retries=2, groq_api_key=groq_api_key),
+        ChatGroq(model_name="openai/gpt-oss-20b", temperature=0.0, max_retries=2, groq_api_key=groq_api_key)
+    ]
+    
+    primary_with_tools = primary_llm.bind_tools(tools)
+    fallbacks_with_tools = [m.bind_tools(tools) for m in fallback_llms]
+    
+    return primary_with_tools.with_fallbacks(fallbacks_with_tools)
 
-models = [model1, model2, model3]
+model = get_assistant_model()
 
 def chat_node(state: AgentState, config):
     """Interact with LLM to generate a response"""
@@ -413,13 +446,7 @@ def chat_node(state: AgentState, config):
         content=system_message.content + f"\n\n### CURRENT USER CONTEXT\nThe email of the user you are currently chatting with is: '{email}'. When executing fetch_reported_by_user, ALWAYS pass this email as the argument."
     )
     messages = [dynamic_system_message] + state["messages"]
-    for model in models:
-        try:
-            response = model.invoke(messages)
-            if response.tool_calls:
-                return {"messages": response}
-        except Exception as e:
-            continue
+    return {"messages": model.invoke(messages)}
 
 app = StateGraph(AgentState)
 app.add_node("chat", chat_node)
@@ -428,4 +455,16 @@ app.add_node("tool_node", tool_node)
 app.add_edge(START, "chat")
 app.add_conditional_edges("chat", tools_condition, {"tools": "tool_node", END: END})
 app.add_edge("tool_node", "chat")
-app = app.compile(checkpointer = MemorySaver())
+app = app.compile(checkpointer=MemorySaver())
+
+
+# if __name__ == "__main__":
+#     while True:
+#         thread_id = "23"
+#         user_input = input("User: ")
+#         if user_input.lower() == "exit":
+#             break
+#         response = app.invoke({"messages": [HumanMessage(content=user_input)]}, config={"configurable": {"thread_id": thread_id}})
+#         print("Assistant: ", response["messages"][-1].content)
+#         print("="*81)
+#         print(response["messages"])

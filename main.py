@@ -728,6 +728,7 @@ def format_assistant_message(text):
         table_html = '<div class="overflow-x-auto my-3 border border-slate-200 rounded-xl bg-white shadow-sm"><table class="min-w-full divide-y divide-slate-200 text-xs">'
         has_header = False
         
+        headers = []
         for line in lines:
             if re.match(r'^[|\s:-]+$', line.replace('|', '').strip()):
                 continue
@@ -739,11 +740,12 @@ def format_assistant_message(text):
                 table_html += '<thead class="bg-slate-50"><tr>'
                 for cell in cells:
                     table_html += f'<th class="px-3 py-2 text-left font-semibold text-slate-700 uppercase tracking-wider">{cell}</th>'
+                    headers.append(cell.lower().replace(" ", "").replace("_", ""))
                 table_html += '</tr></thead><tbody class="divide-y divide-slate-100 bg-white">'
                 has_header = True
             else:
                 table_html += '<tr class="hover:bg-slate-50/50 transition-colors">'
-                for cell in cells:
+                for idx, cell in enumerate(cells):
                     cell_content = cell
                     
                     # 1. Parse datetime values (e.g. 2026-06-12T22:00)
@@ -759,13 +761,17 @@ def format_assistant_message(text):
                         except Exception:
                             pass
                     
-                    # 2. Check for statuses
-                    elif 'Lost' in cell:
-                        cell_content = f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-100">🔴 Lost</span>'
-                    elif 'Found' in cell:
-                        cell_content = f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">🟢 Found</span>'
-                    elif 'Resolved' in cell:
-                        cell_content = f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">✅ Resolved</span>'
+                    else:
+                        # 2. Check for statuses only in status/type columns OR if the cell matches exactly
+                        is_status_col = idx < len(headers) and any(x in headers[idx] for x in ['status', 'type', 'stat'])
+                        cell_lower = cell.strip().lower()
+                        if is_status_col or cell_lower in ['lost', 'found', 'resolved']:
+                            if 'lost' in cell_lower:
+                                cell_content = f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-100">🔴 Lost</span>'
+                            elif 'found' in cell_lower:
+                                cell_content = f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">🟢 Found</span>'
+                            elif 'resolved' in cell_lower:
+                                cell_content = f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">✅ Resolved</span>'
                     
                     table_html += f'<td class="px-3 py-2 text-slate-600 font-medium whitespace-nowrap">{cell_content}</td>'
                 table_html += '</tr>'

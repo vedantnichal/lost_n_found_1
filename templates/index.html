@@ -14,17 +14,17 @@
       A secure, seamless, and lightning-fast platform that helps you find your lost items and return them to their
       owners within the IIT Bhilai campus.
     </p>
-    <div class="flex flex-wrap gap-4">
+    <div class="flex flex-nowrap gap-2 sm:gap-4 overflow-x-auto sm:overflow-visible">
       {% if session.get('user_email') %}
       <a href="{{ url_for('dashboard') }}"
-        class="bg-white text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-xl font-bold shadow-md transition"
+        class="bg-white text-indigo-600 hover:bg-indigo-50 px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-bold shadow-md transition whitespace-nowrap text-sm sm:text-base flex-1 sm:flex-none text-center"
         id="hero-dashboard-btn">Go to Dashboard</a>
       {% else %}
       <a href="{{ url_for('signup') }}"
-        class="bg-white text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-xl font-bold shadow-md transition"
+        class="bg-white text-indigo-600 hover:bg-indigo-50 px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-bold shadow-md transition whitespace-nowrap text-sm sm:text-base flex-1 sm:flex-none text-center"
         id="hero-signup-btn">Get Started Now</a>
       <a href="{{ url_for('login') }}"
-        class="bg-indigo-700/50 hover:bg-indigo-700 text-white border border-indigo-400 px-6 py-3 rounded-xl font-medium transition backdrop-blur-sm"
+        class="bg-indigo-700/50 hover:bg-indigo-700 text-white border border-indigo-400 px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition backdrop-blur-sm whitespace-nowrap text-sm sm:text-base flex-1 sm:flex-none text-center"
         id="hero-login-btn">Sign In</a>
       {% endif %}
     </div>

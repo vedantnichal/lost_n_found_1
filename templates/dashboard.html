@@ -31,34 +31,34 @@
       </div>
     </div>
 
-    <div class="flex flex-wrap md:flex-nowrap gap-4 w-full lg:w-auto justify-center relative z-10">
+    <div class="flex flex-nowrap gap-2 sm:gap-4 w-full lg:w-auto justify-between sm:justify-center relative z-10">
       <!-- Stat Card 1 -->
       <div
-        class="bg-white/80 rounded-2xl p-4 min-w-[120px] aspect-square md:aspect-auto flex flex-col items-center justify-center text-center border border-indigo-50 shadow-sm backdrop-blur-sm">
-        <div class="text-sm font-semibold text-slate-500 mb-1">Total Active</div>
-        <div class="flex justify-center gap-4">
-          <div class="text-rose-500 font-bold text-xl"><span class="text-xs text-slate-400 block -mb-1">Lost</span>{{
+        class="bg-white/80 rounded-2xl p-2 sm:p-4 flex-1 aspect-square sm:aspect-auto sm:flex-none sm:min-w-[120px] flex flex-col items-center justify-center text-center border border-indigo-50 shadow-sm backdrop-blur-sm">
+        <div class="text-xs sm:text-sm font-semibold text-slate-500 mb-1">Total Active</div>
+        <div class="flex justify-center gap-2 sm:gap-4">
+          <div class="text-rose-500 font-bold text-lg sm:text-xl"><span class="text-[10px] sm:text-xs text-slate-400 block -mb-1">Lost</span>{{
             lost_unresolved_entries|length + lost_resolved_entries|length }}</div>
-          <div class="text-emerald-500 font-bold text-xl"><span
-              class="text-xs text-slate-400 block -mb-1">Found</span>{{ found_unresolved_entries|length +
+          <div class="text-emerald-500 font-bold text-lg sm:text-xl"><span
+              class="text-[10px] sm:text-xs text-slate-400 block -mb-1">Found</span>{{ found_unresolved_entries|length +
             found_resolved_entries|length }}</div>
         </div>
       </div>
       <!-- Stat Card 2 -->
       <div
-        class="bg-white/80 rounded-2xl p-4 min-w-[120px] aspect-square md:aspect-auto flex flex-col items-center justify-center text-center border border-indigo-50 shadow-sm backdrop-blur-sm">
-        <div class="text-sm font-semibold text-slate-500 mb-1">Resolved</div>
-        <div class="flex justify-center gap-4">
-          <div class="text-emerald-500 font-bold text-xl">{{ found_resolved_entries|length +lost_resolved_entries|length
+        class="bg-white/80 rounded-2xl p-2 sm:p-4 flex-1 aspect-square sm:aspect-auto sm:flex-none sm:min-w-[120px] flex flex-col items-center justify-center text-center border border-indigo-50 shadow-sm backdrop-blur-sm">
+        <div class="text-xs sm:text-sm font-semibold text-slate-500 mb-1">Resolved</div>
+        <div class="flex justify-center gap-2 sm:gap-4">
+          <div class="text-emerald-500 font-bold text-lg sm:text-xl">{{ found_resolved_entries|length +lost_resolved_entries|length
             }}</div>
         </div>
       </div>
       <!-- Stat Card 3 -->
       <div
-        class="bg-white/80 rounded-2xl p-4 min-w-[120px] aspect-square md:aspect-auto flex flex-col items-center justify-center text-center border border-indigo-50 shadow-sm backdrop-blur-sm">
-        <div class="text-sm font-semibold text-slate-500 mb-1">Unresolved</div>
-        <div class="flex justify-center gap-4">
-          <div class="text-rose-500 font-bold text-xl">{{ lost_unresolved_entries|length +
+        class="bg-white/80 rounded-2xl p-2 sm:p-4 flex-1 aspect-square sm:aspect-auto sm:flex-none sm:min-w-[120px] flex flex-col items-center justify-center text-center border border-indigo-50 shadow-sm backdrop-blur-sm">
+        <div class="text-xs sm:text-sm font-semibold text-slate-500 mb-1">Unresolved</div>
+        <div class="flex justify-center gap-2 sm:gap-4">
+          <div class="text-rose-500 font-bold text-lg sm:text-xl">{{ lost_unresolved_entries|length +
             found_unresolved_entries|length}}</div>
         </div>
       </div>

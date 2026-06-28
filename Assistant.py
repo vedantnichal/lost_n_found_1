@@ -8,8 +8,9 @@ from dotenv import load_dotenv
 from typing import Annotated, Literal, Optional, TypedDict, List, Dict, Union
 from langchain_core.tools import tool
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
-from sklearn.metrics.pairwise import cosine_similarity
 import difflib, re, requests, base64, os
+
+
 import google.generativeai as genai
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -27,7 +28,6 @@ You have access to these tools:
 - fetch_items(): Retrieves all active lost items, found items, and resolved items. Always use this tool when users ask about what items are lost, found, or in the database.
 - fetch_reported_by_user(email): Retrieves all reports submitted by a specific user. Use this when a user asks about their own reports or items they have submitted.
 - fetch_items_nearby(location): Retrieves active items that are nearby a specific campus landmark. Always use this tool when a user asks about items lost, found, or reported near a particular location (e.g., a hostel, Mess, ground, parking, etc.).
-- fetch_similar_items(query_text): Retrieves items similar to the query_text using vector similarity. Always use this tool when a user asks about items similar to a given text.
 - make_report(email, title, description, location, category, losttime, image, type): Makes a report for a lost or found item. Always use this tool when a user asks to make a report for a lost or found item.
 
 ### 2. WEBAPP NAVIGATION & URL MAPPING
@@ -135,7 +135,7 @@ Identify the user's intent from their natural language query and use the correct
 - **Show/List Lost Items** (e.g., "show lost items", "list things that are lost", "find lost items", "what's lost"): Call `fetch_items()`. Filter the results and display ONLY the active items of type "lost" in a Markdown table.
 - **Show/List Found Items** (e.g., "show found items", "things which are found", "what has been found"): Call `fetch_items()`. Filter the results and display ONLY the active items of type "found" in a Markdown table.
 - **Show/List All Reported Items** (e.g., "list all reported items", "what items are in the database", "show everything"): Call `fetch_items()`. Display all active "lost" and "found" items in a Markdown table.
-- **Search for Specific Items** (e.g., "Did anyone find a Casio calculator?", "I lost my red keys", "search for watch"): Call `fetch_similar_items(query_text="...")` using the key search terms (e.g., "Casio calculator", "red keys", "watch"). And also ask user where he wants to report it or not.
+- **Search for Specific Items** (e.g., "Did anyone find a Casio calculator?", "I lost my red keys", "search for watch"): Call `fetch_items()`. The LLM will then scan the list of items for the keyword and display the results in a Markdown table.
 - **User's Own Reports** (e.g., "show my posts", "what did I report?", "my lost items"): Call `fetch_reported_by_user(email)` using the user's email context.
 - **Nearby/Location-Based Queries** (e.g., "lost near lhc 500", "any items found near kanhar"): Call `fetch_items_nearby(location="...")` with the parsed landmark name.
 
@@ -314,45 +314,7 @@ def fetch_items_nearby(location):
                     nearby_items.append(item)
     return {"nearby_items" : nearby_items}
 
-@tool
-def fetch_similar_items(query_text):
-    """
-    Searches for items similar to the query_text using vector similarity. 
-    Args:
-        query_text: The text to search for.
-    Returns:
-        A dictionary containing the similar items.
-    """
-    try:
-        query_embedding = database.embedding_model.encode(query_text).tolist()
-    except Exception as e:
-        return {"error": f"Error generating query embedding: {str(e)}"}
 
-    all_items = database.get_entries_with_embeddings()
-    if not all_items:
-        return {"similar_items": [], "message": "No items found in the database"}
-
-    scores = []
-    for item in all_items:
-        try:
-            item_embedding = eval(item["embeddings"])
-            if not item_embedding or len(item_embedding) != len(query_embedding):
-                item_embedding = database.get_embeddings(item)
-            
-            if item_embedding:
-                score = cosine_similarity([query_embedding], [item_embedding])[0][0]
-                scores.append((score, item))
-        except Exception as e:
-            print(f"Error processing item {item.get('id')}: {e}")
-            continue
-
-    scores.sort(key=lambda x: x[0], reverse=True)
-    similar_items = []
-    for score, item in scores[:3]:
-        clean_item = {k: v for k, v in item.items() if k != "embeddings"}
-        similar_items.append(clean_item)
-
-    return {"similar_items": similar_items}
 
 class ImageAnalysis(BaseModel):
     """
@@ -509,19 +471,19 @@ def make_report(email = None, title = None, description = None, location = None,
     else:
         return {"report_tool": "Please provide all the details about the item."}
 
-tools = [fetch_items, fetch_reported_by_user, fetch_items_nearby, fetch_similar_items, make_report]
+tools = [fetch_items, fetch_reported_by_user, fetch_items_nearby, make_report]
 tool_node = ToolNode(tools)
 
 def get_assistant_model():
     groq_api_key = os.getenv("GROQ_API_KEY")
     
-    primary_llm = ChatGroq(model_name="qwen/qwen3.6-27b",temperature=0.0,max_retries=1,timeout=30,groq_api_key=groq_api_key)
+    primary_llm = ChatGroq(model_name="qwen/qwen3-32b",temperature=0.0,max_retries=1,timeout=30,groq_api_key=groq_api_key)
     
     fallback_llms = [
+        ChatGroq(model_name="openai/gpt-oss-120b", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key),
         ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key),
-        ChatGroq(model_name="x-ai/grok-4.1-fast", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key),
-        ChatGroq(model_name="openai/gpt-oss-20b", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key),
-        ChatGroq(model_name="llama-3.1-8b-instant", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key)
+        ChatGroq(model_name="qwen/qwen3.6-27b", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key),
+        ChatGroq(model_name="openai/gpt-oss-20b", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key)
     ]
     
     model = primary_llm.with_fallbacks(fallback_llms)
@@ -554,13 +516,13 @@ app.add_edge("tool_node", "chat")
 app = app.compile(checkpointer=MemorySaver())
 
 
-# if __name__ == "__main__":
-#     while True:
-#         thread_id = "23"
-#         user_input = input("User: ")
-#         if user_input.lower() == "exit":
-#             break
-#         response = app.invoke({"messages": [HumanMessage(content=user_input)]}, config={"configurable": {"thread_id": thread_id}})
-#         print("Assistant: ", response["messages"][-1].content)
-#         print("="*81)
-#         print(response["messages"])
+if __name__ == "__main__":
+    while True:
+        thread_id = "23"
+        user_input = input("User: ")
+        if user_input.lower() == "exit":
+            break
+        response = app.invoke({"messages": [HumanMessage(content=user_input)]}, config={"configurable": {"thread_id": thread_id}})
+        print("Assistant: ", response["messages"][-1].content)
+        print("="*81)
+        print(response["messages"])

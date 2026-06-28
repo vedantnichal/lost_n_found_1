@@ -9,5 +9,4 @@ langchain_core
 langchain_groq
 langgraph
 google.generativeai
-scikit-learn
-fastembed
+

@@ -515,24 +515,17 @@ tool_node = ToolNode(tools)
 def get_assistant_model():
     groq_api_key = os.getenv("GROQ_API_KEY")
     
-    primary_llm = ChatGroq(
-        model_name="qwen/qwen3.6-27b",
-        temperature=0.0,
-        max_retries=3,
-        groq_api_key=groq_api_key
-    )
+    primary_llm = ChatGroq(model_name="qwen/qwen3.6-27b",temperature=0.0,max_retries=1,timeout=30,groq_api_key=groq_api_key)
     
     fallback_llms = [
-        ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.0, max_retries=2, groq_api_key=groq_api_key),
-        ChatGroq(model_name="llama-3.1-8b-instant", temperature=0.0, max_retries=2, groq_api_key=groq_api_key),
-        ChatGroq(model_name="openai/gpt-oss-20b", temperature=0.0, max_retries=2, groq_api_key=groq_api_key),
-        ChatGroq(model_name="x-ai/grok-4.1-fast", temperature=0.0, max_retries=2, groq_api_key=groq_api_key)
+        ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key),
+        ChatGroq(model_name="x-ai/grok-4.1-fast", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key),
+        ChatGroq(model_name="openai/gpt-oss-20b", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key),
+        ChatGroq(model_name="llama-3.1-8b-instant", temperature=0.0, max_retries=1,timeout=30, groq_api_key=groq_api_key)
     ]
     
-    primary_with_tools = primary_llm.bind_tools(tools)
-    fallbacks_with_tools = [m.bind_tools(tools) for m in fallback_llms]
-    
-    return primary_with_tools.with_fallbacks(fallbacks_with_tools)
+    model = primary_llm.with_fallbacks(fallback_llms)
+    return model.bind_tools(tools)
 
 model = get_assistant_model()
 

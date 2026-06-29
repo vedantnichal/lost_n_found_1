@@ -5,6 +5,14 @@ import requests
 from dotenv import load_dotenv
 import database
 
+# Force IPv4 to prevent [Errno 101] Network is unreachable on systems with broken IPv6
+try:
+    import socket
+    import urllib3.util.connection as connection
+    connection.allowed_gai_family = lambda: socket.AF_INET
+except ImportError:
+    pass
+
 load_dotenv()
 
 PROMAILER_API_KEY = os.getenv("PROMAILER_API_KEY")

@@ -1,26 +1,53 @@
 import os
 import html
-import smtplib
 import threading
-from email.message import EmailMessage
-from email.utils import formataddr
+import requests
+from dotenv import load_dotenv
 import database
 
-email_user = os.getenv("SMTP_EMAIL")
-email_pass = os.getenv("SMTP_PASSWORD")
+load_dotenv()
+
+PROMAILER_API_KEY = os.getenv("PROMAILER_API_KEY")
+PROMAILER_SMTP_ID = os.getenv("PROMAILER_SMTP_ID")
+MAIL_SENDER = os.getenv("MAIL_SENDER")
+
+
+def send_via_promailer(receiver_email, subject, text, html_content, reply_to=None):
+    if not PROMAILER_API_KEY or not PROMAILER_SMTP_ID:
+        raise Exception("Promailer configuration (PROMAILER_API_KEY, PROMAILER_SMTP_ID) missing in environment variables.")
+
+    url = "https://mailserver.automationlounge.com/api/v1/messages/send"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {PROMAILER_API_KEY}"
+    }
+    payload = {
+        "smtpId": PROMAILER_SMTP_ID,
+        "to": receiver_email,
+        "subject": subject,
+        "text": text,
+        "html": html_content
+    }
+    if MAIL_SENDER:
+        payload["from"] = MAIL_SENDER
+    if reply_to:
+        payload["replyTo"] = reply_to
+
+    response = requests.post(url, json=payload, headers=headers, timeout=20)
+    if response.status_code not in [200, 201, 202]:
+        raise Exception(f"Promailer API returned status {response.status_code}: {response.text}")
+
+    return response
+
+
+def send_mailjet(receiver_email, subject, text, html):
+    response = send_via_promailer(receiver_email, subject, text, html)
+    print(response.status_code)
+    print(response.json())
+
 
 def send_notification(receiver_email, subject, heading, text_body, link_url=None):
-    if not email_user or not email_pass:
-        print("SMTP credentials not configured. Skipping notification email.")
-        return
-        
     try:
-        msg = EmailMessage()
-        msg["From"] = formataddr(("LostLinks Portal", email_user))
-        msg["To"] = receiver_email
-        msg["Subject"] = subject
-        msg["MIME-Version"] = "1.0"
-        
         button_html = ""
         if link_url:
             button_html = f"""
@@ -65,35 +92,25 @@ def send_notification(receiver_email, subject, heading, text_body, link_url=None
         </body>
         </html>
         """
-        msg.set_content(text_body)
-        msg.add_alternative(html_content, subtype="html")
-        
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
-        server.login(email_user, email_pass)
-        server.sendmail(email_user, receiver_email, msg.as_string())
-        server.quit()
-        print(f"Notification email sent successfully to {receiver_email}")
+
+        response = send_via_promailer(receiver_email, subject, text_body, html_content)
+        if response.status_code in [200, 201, 202]:
+            print(f"Notification email sent successfully to {receiver_email}")
+        else:
+            print(f"Failed to send notification email to {receiver_email}. Status: {response.status_code}, Response: {response.text}")
     except Exception as e:
         print(f"Failed to send notification email to {receiver_email}: {e}")
+
 
 def send_notification_async(receiver_email, subject, heading, text_body, link_url=None):
     t = threading.Thread(target=send_notification, args=(receiver_email, subject, heading, text_body, link_url))
     t.daemon = True
     t.start()
 
+
 def send_inquiry(sender_email, receiver_email, subject, message, item_id=None):
-    if not email_user or not email_pass:
-        raise Exception("SMTP credentials not configured.")
-        
     sender_email_esc = html.escape(sender_email)
     message_esc = html.escape(message)
-    
-    msg = EmailMessage()
-    msg["From"] = formataddr(("LostLinks Portal", email_user))
-    msg["Reply-To"] = sender_email
-    msg["To"] = receiver_email
-    msg["Subject"] = subject
-    msg["MIME-Version"] = "1.0"
     
     item_html = ""
     item_text = ""
@@ -139,7 +156,7 @@ def send_inquiry(sender_email, receiver_email, subject, message, item_id=None):
             """
             item_text = f"\nListing Details:\n- Title: {title}\n- Category: {category}\n- Location: {location}\n- Type: {item_type}\n- Time: {losttime}\n"
 
-    msg.set_content(f"{message}\n\n{item_text}")
+    text_body = f"{message}\n\n{item_text}"
     
     html_content = f"""\
     <!DOCTYPE html>
@@ -181,9 +198,5 @@ def send_inquiry(sender_email, receiver_email, subject, message, item_id=None):
     </body>
     </html>
     """
-    msg.add_alternative(html_content, subtype="html")
-    
-    server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
-    server.login(email_user, email_pass)
-    server.sendmail(email_user, receiver_email, msg.as_string())
-    server.quit()
+
+    send_via_promailer(receiver_email, subject, text_body, html_content, reply_to=sender_email.strip())

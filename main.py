@@ -7,9 +7,14 @@ from datetime import datetime
 import re
 from cam import upload_photo
 import mailer
+from flask import send_from_directory
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__, template_folder="templates",  static_folder="static")
 app.secret_key = login_data.super_secret
+
+@app.route('/.well-known/<path:filename>')
+def well_known(filename):
+    return send_from_directory('static/.well-known', filename)
 
 @app.route('/')
 def index():
